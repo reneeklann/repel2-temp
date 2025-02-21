@@ -1,0 +1,8 @@
+"field","field_type","field_description"
+"taxonid","integer","Taxonomic identifier provided by IUCN"
+"scientific_name","character","Scientific name"
+"subspecies","character","Subspecies name"
+"rank","character","Taxonomic rank"
+"subpopulation","character","Sub-population name"
+"category","character","IUCN Red List classification"
+"country","character","Country name"

@@ -1,0 +1,7 @@
+"field","field_type","field_description"
+"country_iso3c","character","ISO 3166-1 alpha-3 code for reference country"
+"year","numeric","Year in YYYY format"
+"taxa","character","Taxa name. Can be one of either birds, buffaloes, camelidae, cattle, equidae, hares/rabbits, sheep/goats, swine"
+"population","numeric","Taxa population size"
+"imputed_value","logical","Is the taxa population size imputed?"
+"source","character","Source of information"

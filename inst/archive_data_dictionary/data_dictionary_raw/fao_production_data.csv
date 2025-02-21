@@ -1,0 +1,8 @@
+"field","field_type","field_description"
+"area","character","Reference country"
+"item_code","integer","FAO code for crop or livestock item"
+"item","character","Name of crop or livestock item"
+"element","character","Type of production measured (e.g. area harvested, quantity by weight, number of animals)"
+"year","integer","Year in YYYY format"
+"unit","character","Units for value"
+"value","numeric","Value for specific crop or livestock item"

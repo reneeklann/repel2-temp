@@ -1,0 +1,5 @@
+"field","field_type","field_description"
+"country_origin","character","ISO 3166-1 alpha-3 code for origin or reference country"
+"country_destination","character","ISO 3166-1 alpha-3 code for destination or connecting country"
+"n_migratory_wildlife","integer","Number of migratory wildlife between origin and destination country"
+"source","character","Source of information"

@@ -1,0 +1,1366 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<meta name="author" content="EcoHealth Alliance" />
+
+<meta name="date" content="2024-06-13" />
+
+<title>REPEL Livestock and Crop Model Pipeline</title>
+
+<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
+// be compatible with the behavior of Pandoc < 2.8).
+document.addEventListener('DOMContentLoaded', function(e) {
+  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
+  var i, h, a;
+  for (i = 0; i < hs.length; i++) {
+    h = hs[i];
+    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
+    a = h.attributes;
+    while (a.length > 0) h.removeAttribute(a[0].name);
+  }
+});
+</script>
+<script>$(document).ready(function(){
+    if (typeof $('[data-toggle="tooltip"]').tooltip === 'function') {
+        $('[data-toggle="tooltip"]').tooltip();
+    }
+    if ($('[data-toggle="popover"]').popover === 'function') {
+        $('[data-toggle="popover"]').popover();
+    }
+});
+</script>
+<style type="text/css">
+.lightable-minimal {
+border-collapse: separate;
+border-spacing: 16px 1px;
+width: 100%;
+margin-bottom: 10px;
+}
+.lightable-minimal td {
+margin-left: 5px;
+margin-right: 5px;
+}
+.lightable-minimal th {
+margin-left: 5px;
+margin-right: 5px;
+}
+.lightable-minimal thead tr:last-child th {
+border-bottom: 2px solid #00000050;
+empty-cells: hide;
+}
+.lightable-minimal tbody tr:first-child td {
+padding-top: 0.5em;
+}
+.lightable-minimal.lightable-hover tbody tr:hover {
+background-color: #f5f5f5;
+}
+.lightable-minimal.lightable-striped tbody tr:nth-child(even) {
+background-color: #f5f5f5;
+}
+.lightable-classic {
+border-top: 0.16em solid #111111;
+border-bottom: 0.16em solid #111111;
+width: 100%;
+margin-bottom: 10px;
+margin: 10px 5px;
+}
+.lightable-classic tfoot tr td {
+border: 0;
+}
+.lightable-classic tfoot tr:first-child td {
+border-top: 0.14em solid #111111;
+}
+.lightable-classic caption {
+color: #222222;
+}
+.lightable-classic td {
+padding-left: 5px;
+padding-right: 5px;
+color: #222222;
+}
+.lightable-classic th {
+padding-left: 5px;
+padding-right: 5px;
+font-weight: normal;
+color: #222222;
+}
+.lightable-classic thead tr:last-child th {
+border-bottom: 0.10em solid #111111;
+}
+.lightable-classic.lightable-hover tbody tr:hover {
+background-color: #F9EEC1;
+}
+.lightable-classic.lightable-striped tbody tr:nth-child(even) {
+background-color: #f5f5f5;
+}
+.lightable-classic-2 {
+border-top: 3px double #111111;
+border-bottom: 3px double #111111;
+width: 100%;
+margin-bottom: 10px;
+}
+.lightable-classic-2 tfoot tr td {
+border: 0;
+}
+.lightable-classic-2 tfoot tr:first-child td {
+border-top: 3px double #111111;
+}
+.lightable-classic-2 caption {
+color: #222222;
+}
+.lightable-classic-2 td {
+padding-left: 5px;
+padding-right: 5px;
+color: #222222;
+}
+.lightable-classic-2 th {
+padding-left: 5px;
+padding-right: 5px;
+font-weight: normal;
+color: #222222;
+}
+.lightable-classic-2 tbody tr:last-child td {
+border-bottom: 3px double #111111;
+}
+.lightable-classic-2 thead tr:last-child th {
+border-bottom: 1px solid #111111;
+}
+.lightable-classic-2.lightable-hover tbody tr:hover {
+background-color: #F9EEC1;
+}
+.lightable-classic-2.lightable-striped tbody tr:nth-child(even) {
+background-color: #f5f5f5;
+}
+.lightable-material {
+min-width: 100%;
+white-space: nowrap;
+table-layout: fixed;
+font-family: Roboto, sans-serif;
+border: 1px solid #EEE;
+border-collapse: collapse;
+margin-bottom: 10px;
+}
+.lightable-material tfoot tr td {
+border: 0;
+}
+.lightable-material tfoot tr:first-child td {
+border-top: 1px solid #EEE;
+}
+.lightable-material th {
+height: 56px;
+padding-left: 16px;
+padding-right: 16px;
+}
+.lightable-material td {
+height: 52px;
+padding-left: 16px;
+padding-right: 16px;
+border-top: 1px solid #eeeeee;
+}
+.lightable-material.lightable-hover tbody tr:hover {
+background-color: #f5f5f5;
+}
+.lightable-material.lightable-striped tbody tr:nth-child(even) {
+background-color: #f5f5f5;
+}
+.lightable-material.lightable-striped tbody td {
+border: 0;
+}
+.lightable-material.lightable-striped thead tr:last-child th {
+border-bottom: 1px solid #ddd;
+}
+.lightable-material-dark {
+min-width: 100%;
+white-space: nowrap;
+table-layout: fixed;
+font-family: Roboto, sans-serif;
+border: 1px solid #FFFFFF12;
+border-collapse: collapse;
+margin-bottom: 10px;
+background-color: #363640;
+}
+.lightable-material-dark tfoot tr td {
+border: 0;
+}
+.lightable-material-dark tfoot tr:first-child td {
+border-top: 1px solid #FFFFFF12;
+}
+.lightable-material-dark th {
+height: 56px;
+padding-left: 16px;
+padding-right: 16px;
+color: #FFFFFF60;
+}
+.lightable-material-dark td {
+height: 52px;
+padding-left: 16px;
+padding-right: 16px;
+color: #FFFFFF;
+border-top: 1px solid #FFFFFF12;
+}
+.lightable-material-dark.lightable-hover tbody tr:hover {
+background-color: #FFFFFF12;
+}
+.lightable-material-dark.lightable-striped tbody tr:nth-child(even) {
+background-color: #FFFFFF12;
+}
+.lightable-material-dark.lightable-striped tbody td {
+border: 0;
+}
+.lightable-material-dark.lightable-striped thead tr:last-child th {
+border-bottom: 1px solid #FFFFFF12;
+}
+.lightable-paper {
+width: 100%;
+margin-bottom: 10px;
+color: #444;
+}
+.lightable-paper tfoot tr td {
+border: 0;
+}
+.lightable-paper tfoot tr:first-child td {
+border-top: 1px solid #00000020;
+}
+.lightable-paper thead tr:last-child th {
+color: #666;
+vertical-align: bottom;
+border-bottom: 1px solid #00000020;
+line-height: 1.15em;
+padding: 10px 5px;
+}
+.lightable-paper td {
+vertical-align: middle;
+border-bottom: 1px solid #00000010;
+line-height: 1.15em;
+padding: 7px 5px;
+}
+.lightable-paper.lightable-hover tbody tr:hover {
+background-color: #F9EEC1;
+}
+.lightable-paper.lightable-striped tbody tr:nth-child(even) {
+background-color: #00000008;
+}
+.lightable-paper.lightable-striped tbody td {
+border: 0;
+}
+</style>
+
+<style type="text/css">
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+span.underline{text-decoration: underline;}
+div.column{display: inline-block; vertical-align: top; width: 50%;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+</style>
+
+
+
+
+
+
+
+<style type="text/css">body {
+background-color: #fff;
+margin: 1em auto;
+max-width: 700px;
+overflow: visible;
+padding-left: 2em;
+padding-right: 2em;
+font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.35;
+}
+#TOC {
+clear: both;
+margin: 0 0 10px 10px;
+padding: 4px;
+width: 400px;
+border: 1px solid #CCCCCC;
+border-radius: 5px;
+background-color: #f6f6f6;
+font-size: 13px;
+line-height: 1.3;
+}
+#TOC .toctitle {
+font-weight: bold;
+font-size: 15px;
+margin-left: 5px;
+}
+#TOC ul {
+padding-left: 40px;
+margin-left: -1.5em;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+#TOC ul ul {
+margin-left: -2em;
+}
+#TOC li {
+line-height: 16px;
+}
+table {
+margin: 1em auto;
+border-width: 1px;
+border-color: #DDDDDD;
+border-style: outset;
+border-collapse: collapse;
+}
+table th {
+border-width: 2px;
+padding: 5px;
+border-style: inset;
+}
+table td {
+border-width: 1px;
+border-style: inset;
+line-height: 18px;
+padding: 5px 5px;
+}
+table, table th, table td {
+border-left-style: none;
+border-right-style: none;
+}
+table thead, table tr.even {
+background-color: #f7f7f7;
+}
+p {
+margin: 0.5em 0;
+}
+blockquote {
+background-color: #f6f6f6;
+padding: 0.25em 0.75em;
+}
+hr {
+border-style: solid;
+border: none;
+border-top: 1px solid #777;
+margin: 28px 0;
+}
+dl {
+margin-left: 0;
+}
+dl dd {
+margin-bottom: 13px;
+margin-left: 13px;
+}
+dl dt {
+font-weight: bold;
+}
+ul {
+margin-top: 0;
+}
+ul li {
+list-style: circle outside;
+}
+ul ul {
+margin-bottom: 0;
+}
+pre, code {
+background-color: #f7f7f7;
+border-radius: 3px;
+color: #333;
+white-space: pre-wrap; 
+}
+pre {
+border-radius: 3px;
+margin: 5px 0px 10px 0px;
+padding: 10px;
+}
+pre:not([class]) {
+background-color: #f7f7f7;
+}
+code {
+font-family: Consolas, Monaco, 'Courier New', monospace;
+font-size: 85%;
+}
+p > code, li > code {
+padding: 2px 0px;
+}
+div.figure {
+text-align: center;
+}
+img {
+background-color: #FFFFFF;
+padding: 2px;
+border: 1px solid #DDDDDD;
+border-radius: 3px;
+border: 1px solid #CCCCCC;
+margin: 0 5px;
+}
+h1 {
+margin-top: 0;
+font-size: 35px;
+line-height: 40px;
+}
+h2 {
+border-bottom: 4px solid #f7f7f7;
+padding-top: 10px;
+padding-bottom: 2px;
+font-size: 145%;
+}
+h3 {
+border-bottom: 2px solid #f7f7f7;
+padding-top: 10px;
+font-size: 120%;
+}
+h4 {
+border-bottom: 1px solid #f7f7f7;
+margin-left: 8px;
+font-size: 105%;
+}
+h5, h6 {
+border-bottom: 1px solid #ccc;
+font-size: 105%;
+}
+a {
+color: #0033dd;
+text-decoration: none;
+}
+a:hover {
+color: #6666ff; }
+a:visited {
+color: #800080; }
+a:visited:hover {
+color: #BB00BB; }
+a[href^="http:"] {
+text-decoration: underline; }
+a[href^="https:"] {
+text-decoration: underline; }
+
+code > span.kw { color: #555; font-weight: bold; } 
+code > span.dt { color: #902000; } 
+code > span.dv { color: #40a070; } 
+code > span.bn { color: #d14; } 
+code > span.fl { color: #d14; } 
+code > span.ch { color: #d14; } 
+code > span.st { color: #d14; } 
+code > span.co { color: #888888; font-style: italic; } 
+code > span.ot { color: #007020; } 
+code > span.al { color: #ff0000; font-weight: bold; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
+</style>
+
+
+
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">REPEL Livestock and Crop Model
+Pipeline</h1>
+<h4 class="author">EcoHealth Alliance</h4>
+<h4 class="date">2024-06-13</h4>
+
+
+<div id="TOC">
+<ul>
+<li><a href="#project-setup" id="toc-project-setup">Project setup</a>
+<ul>
+<li><a href="#downloading-the-repository" id="toc-downloading-the-repository">Downloading the repository</a></li>
+<li><a href="#setting-environment-variables" id="toc-setting-environment-variables">Setting environment variables</a>
+<ul>
+<li><a href="#authentication-keys" id="toc-authentication-keys">Authentication keys</a></li>
+<li><a href="#project-settings" id="toc-project-settings">Project
+settings</a></li>
+</ul></li>
+<li><a href="#r-dependencies" id="toc-r-dependencies">R
+dependencies</a></li>
+<li><a href="#targets-workflow" id="toc-targets-workflow">Targets
+workflow</a></li>
+<li><a href="#docker" id="toc-docker">Docker</a></li>
+</ul></li>
+<li><a href="#data-ingest-and-processing" id="toc-data-ingest-and-processing">Data ingest and processing</a>
+<ul>
+<li><a href="#pipeline-testing" id="toc-pipeline-testing">Pipeline
+testing</a></li>
+<li><a href="#detecting-changes-in-data-sources" id="toc-detecting-changes-in-data-sources">Detecting changes in data
+sources</a></li>
+<li><a href="#data-storage" id="toc-data-storage">Data storage</a></li>
+<li><a href="#crop-disease-data-extraction" id="toc-crop-disease-data-extraction">Crop disease data extraction</a>
+<ul>
+<li><a href="#nlp-approach" id="toc-nlp-approach">NLP approach</a></li>
+<li><a href="#manual-approach" id="toc-manual-approach">Manual
+approach</a></li>
+</ul></li>
+</ul></li>
+<li><a href="#model-fitting" id="toc-model-fitting">Model fitting</a>
+<ul>
+<li><a href="#model-reports" id="toc-model-reports">Model
+reports</a></li>
+<li><a href="#model-cache-and-retraining" id="toc-model-cache-and-retraining">Model cache and retraining</a></li>
+</ul></li>
+<li><a href="#model-predictions" id="toc-model-predictions">Model
+predictions</a>
+<ul>
+<li><a href="#updating-model-predictions" id="toc-updating-model-predictions">Updating model predictions</a></li>
+</ul></li>
+<li><a href="#nowcast" id="toc-nowcast">NowCast</a></li>
+</ul>
+</div>
+
+<hr />
+<p>This vignette is an overview of the full pipeline for the livestock
+and crop REPEL models, from data ingest and processing to model fitting
+and predictions. The project final technical report can be found in
+<code>reports/final-report.</code></p>
+<div id="project-setup" class="section level1">
+<h1>Project setup</h1>
+<div id="downloading-the-repository" class="section level2">
+<h2>Downloading the repository</h2>
+<p>The project GitHub repository is available at <a href="https://github.com/ecohealthalliance/repel2-battelle">https://github.com/ecohealthalliance/repel2-battelle</a>.</p>
+<p>In the terminal, the repository can be cloned using HTTPS:</p>
+<pre><code>git clone https://github.com/ecohealthalliance/repel2-battelle</code></pre>
+<p>or using SSH:</p>
+<pre><code>git clone git@github.com:ecohealthalliance/repel2-battelle.git</code></pre>
+<p>You also have the option of downloading a zipped version of the
+repository from GitHub. Unzip the file into a preferred directory on
+your machine.</p>
+</div>
+<div id="setting-environment-variables" class="section level2">
+<h2>Setting environment variables</h2>
+<p>Environment variables are used to store authentication keys for data
+sources and to specify model settings.</p>
+<p>Variables can be set manually before running the data ingest
+pipeline. For example, in R:</p>
+<pre><code>Sys.setenv(VARIABLE_NAME = YOUR_VARIABLE_VALUE)</code></pre>
+<p>However, we suggest storing environment variables in an
+<code>.env</code> file in the root directory of the repository. This
+way, environment variables will always be loaded prior to running the
+pipeline.</p>
+<div id="authentication-keys" class="section level3">
+<h3>Authentication keys</h3>
+<p>Some of the data sources require authentication keys to access the
+data programmatically. The following keys should be saved as environment
+variables.</p>
+<pre><code>IUCN_REDLIST_KEY=YOUR_IUCN_REDLIST_KEY_HERE
+
+COMTRADE_PRIMARY=YOUR_COMTRADE_PRIMARY_KEY_HERE
+COMTRADE_SECONDARY=YOUR_COMTRADE_SECONDARY_KEY_HERE
+
+DOLT_TOKEN=YOUR_DOLTHUB_TOKEN_HERE
+
+EPPO_TOKEN=YOUR_EPPO_TOKEN_HERE</code></pre>
+<p>Below we provide instructions for obtaining these keys.</p>
+<div id="the-international-union-for-conservation-of-nature-iucn-red-list-of-threatened-species-api-token" class="section level4">
+<h4>The International Union for Conservation of Nature (IUCN) Red List
+of Threatened Species API token</h4>
+<p>The IUCN provides an API to programmatically access the IUCN Red List
+of Threatened Species. The required API token can be generated by making
+a request at <a href="https://apiv3.iucnredlist.org/api/v3/token" class="uri">https://apiv3.iucnredlist.org/api/v3/token</a> detailing
+reason for API use. Request is sent to IUCN and approval along with the
+API token is provided to the email address used during registration.
+This may take several days.</p>
+<p><em>Due to delays in obtaining IUCN tokens, the IUCN data file is now
+saved as part of this data repository. It is no longer necessary to
+obtain a token to be able to run the pipeline.</em></p>
+</div>
+<div id="united-nations-comtrade-database-api-tokenkey" class="section level4">
+<h4>United Nations Comtrade Database API token/key</h4>
+<p>The <a href="https://comtradeplus.un.org/">UN Comtrade Database</a>
+can be accessed programmatically using its API. The API token/key can be
+obtained as follows:</p>
+<ol style="list-style-type: decimal">
+<li><p>Create a UN Comtrade Database account at this <a href="https://unb2c.b2clogin.com/unb2c.onmicrosoft.com/b2c_1a_signup_signin_comtrade/oauth2/v2.0/authorize?client_id=85644091-2534-4703-a6e9-456533d03b2d&amp;scope=openid%20https%3A%2F%2Funb2c.onmicrosoft.com%2Fcomtradeapibe%2Fcomtradeapifunction.write%20profile%20offline_access&amp;redirect_uri=https%3A%2F%2Fcomtradeplus.un.org&amp;client-request-id=3927c60f-62b4-49eb-838e-4a0eff479045&amp;response_mode=fragment&amp;response_type=code&amp;x-client-SKU=msal.js.browser&amp;x-client-VER=2.22.0&amp;x-client-OS=&amp;x-client-CPU=&amp;client_info=1&amp;code_challenge=VHldePVQmSWkhv_iK9_kBjUGPBLlGZA3S9vqiW74wwQ&amp;code_challenge_method=S256&amp;nonce=3905f277-db63-4746-93e7-264cb061b48a&amp;state=eyJpZCI6IjAwNGMzYjU0LWRjMzMtNGNmOC1hOTg4LWUzYzJjNjc3NmU0OCIsIm1ldGEiOnsiaW50ZXJhY3Rpb25UeXBlIjoicmVkaXJlY3QifX0%3D">link</a></p></li>
+<li><p>Sign in to the <a href="https://comtradedeveloper.un.org/signin?returnUrl=%2F">UN Comtrade
+Database API portal</a> and then proceed to the
+<strong>Products</strong> tab (<a href="https://comtradedeveloper.un.org/products" class="uri">https://comtradedeveloper.un.org/products</a>)</p></li>
+<li><p>From the <strong>Products</strong> page, select the <strong>Free
+APIs</strong> option (<a href="https://comtradedeveloper.un.org/product#product=free" class="uri">https://comtradedeveloper.un.org/product#product=free</a>)</p></li>
+<li><p>In the text entry dialog box, enter <code>comtrade-v1</code> and
+then click the <code>Subscribe</code> button</p></li>
+</ol>
+<p>After these steps, the page should now show you two subscription keys
+called primary and secondary which are the API tokens/keys needed for
+API access.</p>
+</div>
+<div id="world-animal-health-information-system-wahis-data-via-ecohealth-alliances-dolthub-repository" class="section level4">
+<h4>World Animal Health Information System (WAHIS) data via EcoHealth
+Alliance’s DoltHub repository</h4>
+<p>EcoHealth Alliance routinely curates animal health information on
+animal disease events and outbreaks from WOAH’s <a href="https://wahis.woah.org/#/home">WAHIS website</a> using <a href="https://www.dolthub.com">DoltHub</a>. The curated database is
+found <a href="https://www.dolthub.com/repositories/ecohealthalliance/wahisdb">here</a>
+and is openly accessible. Programmatically, access can be gained using a
+DoltHub API key. A DoltHub API key can be created as follows:</p>
+<ol style="list-style-type: decimal">
+<li><p>Create a DoltHub account</p></li>
+<li><p>Log in to your DoltHub account</p></li>
+<li><p>Create an API token in your <a href="https://www.dolthub.com/settings/tokens">settings</a> on
+DoltHub</p></li>
+</ol>
+</div>
+<div id="european-and-mediterranean-plant-protection-organization-eppo-data-services" class="section level4">
+<h4>European and Mediterranean Plant Protection Organization (EPPO) Data
+Services</h4>
+<p>EPPO Data Services provides an API to programmatically access the
+database used for plant disease name standardization. An API token can
+be generated by registering for an account at <a href="https://data.eppo.int/user/register" class="uri">https://data.eppo.int/user/register</a>. Immediately after
+registration, the token can be copied from the <a href="https://data.eppo.int/user/">user dashboard</a>, under the
+<strong>Tokens API</strong> header.</p>
+</div>
+</div>
+<div id="project-settings" class="section level3">
+<h3>Project settings</h3>
+<p>In addition to authentication keys, environment variables can be used
+to store project settings. For example, the user can set the following
+variables to use AWS for object storage:</p>
+<pre><code>AWS_REGION=YOUR_AWS_REGION_HERE
+AWS_BUCKET_ID=YOUR_AWS_BUCKET_ID_HERE
+AWS_ACCESS_KEY_ID=YOUR_AWS_ACCESS_KEY_ID_HERE
+AWS_SECRET_ACCESS_KEY=YOUR_AWS_SECRET_ACCESS_KEY_HERE</code></pre>
+<p>Additional settings related to model fitting and prediction are
+described in their respective sections below.</p>
+</div>
+</div>
+<div id="r-dependencies" class="section level2">
+<h2>R dependencies</h2>
+<p>This pipeline was created using R version 4.3.2 (2023-10-31). This
+project uses the <code>{renv}</code> framework to record R package
+dependencies and versions. Packages and versions used are recorded in
+<code>renv.lock</code> and code used to manage dependencies is in
+<code>renv/</code> and other files in the root project directory. On
+starting an R session in the working directory, install R package
+dependencies:</p>
+<pre><code>renv::restore()</code></pre>
+<p>or using the following command in Terminal</p>
+<pre><code>Rscript -e &#39;renv::restore()&#39;</code></pre>
+</div>
+<div id="targets-workflow" class="section level2">
+<h2>Targets workflow</h2>
+<p>This pipeline uses the <a href="https://books.ropensci.org/targets/"><code>targets</code>
+package</a> as a build system to resolve dependencies and cache results.
+This is similar conceptually to <code>make</code>, with the
+<code>_targets.R</code> file being the equivalent of a
+<code>Makefile</code>. With <code>targets</code>, the user can build
+individual parts of the pipeline and they will be cached when running in
+the future.</p>
+<noscript>
+<style>
+.withscript {display:none;}
+</style>
+</noscript>
+<p><span class="withscript">This diagram shows all the components of the
+workflow for the livestock model:</span></p>
+<noscript>
+<style>
+.withscript {display:none;}
+</style>
+</noscript>
+<p><span class="withscript">This diagram shows all the components of the
+workflow for the crop model:</span></p>
+</div>
+<div id="docker" class="section level2">
+<h2>Docker</h2>
+<p>We have assembled a Docker image with necessary dependencies to run
+the pipeline, and a convenience shell script (<code>tar_make.sh</code>)
+for building pipeline steps in the console. To build the image locally
+and use it to run the pipeline, run the following</p>
+<pre><code>docker build . -t ecohealthalliance/repel2
+docker run -v &quot;$(pwd):/repel2&quot; ecohealthalliance/repel2 ./tar_make.sh &#39;&lt;TARGET_NAME&gt;&#39;</code></pre>
+<p><code>&lt;TARGET_NAME&gt;</code> can be any target and can also be
+<code>everything()</code> or other selection commands such as
+<code>tidyr::contains(c(&quot;woah&quot;, &quot;wahis&quot;, &quot;iucn&quot;))</code>.</p>
+<p>In addition, we have provided a tarball of the Docker image. Instead
+of building it, you can load it with</p>
+<pre><code>docker load &lt; repelcontainer_vXXX.tar.gz</code></pre>
+</div>
+</div>
+<div id="data-ingest-and-processing" class="section level1">
+<h1>Data ingest and processing</h1>
+<p>The data ingest pipeline retrieves the datasets used by the REPEL
+model from their various sources. These datasets and their respective
+sources are:</p>
+<table class=" lightable-paper" style="font-family: &quot;Arial Narrow&quot;, arial, helvetica, sans-serif; margin-left: auto; margin-right: auto;">
+<caption>
+REPEL datasets with respective data sources
+</caption>
+<thead>
+<tr>
+<th style="text-align:left;">
+Name
+</th>
+<th style="text-align:left;">
+Frequency
+</th>
+<th style="text-align:left;">
+Dimension
+</th>
+<th style="text-align:left;">
+Source
+</th>
+<th style="text-align:left;">
+Model(s)
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Country shared borders
+</td>
+<td style="text-align:left;">
+static
+</td>
+<td style="text-align:left;">
+bilateral
+</td>
+<td style="text-align:left;">
+<a href="https://www.cia.gov/about/archives/download/factbook-2020.zip">CIA
+World Factbook archive</a>
+</td>
+<td style="text-align:left;">
+both
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Human population
+</td>
+<td style="text-align:left;">
+yearly
+</td>
+<td style="text-align:left;">
+per country
+</td>
+<td style="text-align:left;">
+<a href="https://data.worldbank.org/indicator/NY.GDP.MKTP.CD">World
+Bank</a>
+</td>
+<td style="text-align:left;">
+both
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Gross Domestic Product (GDP)
+</td>
+<td style="text-align:left;">
+yearly
+</td>
+<td style="text-align:left;">
+per country
+</td>
+<td style="text-align:left;">
+<a href="https://data.worldbank.org/indicator/NY.GDP.MKTP.CD">World
+Bank</a>
+</td>
+<td style="text-align:left;">
+both
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Wildlife migration
+</td>
+<td style="text-align:left;">
+static
+</td>
+<td style="text-align:left;">
+bilateral
+</td>
+<td style="text-align:left;">
+<a href="https://www.iucnredlist.org/">International Union for
+Conservation of Nature</a>
+</td>
+<td style="text-align:left;">
+both
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Animal disease events and outbreaks
+</td>
+<td style="text-align:left;">
+yearly
+</td>
+<td style="text-align:left;">
+per country
+</td>
+<td style="text-align:left;">
+<a href="https://wahis.woah.org/#/home">World Organisation for Animal
+Health</a>
+</td>
+<td style="text-align:left;">
+livestock
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Veterinarian population
+</td>
+<td style="text-align:left;">
+yearly
+</td>
+<td style="text-align:left;">
+per country
+</td>
+<td style="text-align:left;">
+<a href="https://wahis.woah.org/#/home">World Organisation for Animal
+Health</a>
+</td>
+<td style="text-align:left;">
+livestock
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Plant pest reports
+</td>
+<td style="text-align:left;">
+yearly
+</td>
+<td style="text-align:left;">
+per country
+</td>
+<td style="text-align:left;">
+<a href="https://gd.eppo.int/reporting/">European and Mediterranean
+Plant Protection Organization</a>
+</td>
+<td style="text-align:left;">
+crop
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Plant pest reports
+</td>
+<td style="text-align:left;">
+yearly
+</td>
+<td style="text-align:left;">
+per country
+</td>
+<td style="text-align:left;">
+<a href="https://www.ippc.int/en/countries/all/pestreport/">International
+Plant Protection Convention</a>
+</td>
+<td style="text-align:left;">
+crop
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Plant pest reports
+</td>
+<td style="text-align:left;">
+yearly
+</td>
+<td style="text-align:left;">
+per country
+</td>
+<td style="text-align:left;">
+<a href="https://www.pestalerts.org/nappo/official-pest-reports/">North
+American Plant Protection Organization</a>
+</td>
+<td style="text-align:left;">
+crop
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Taxa population
+</td>
+<td style="text-align:left;">
+yearly
+</td>
+<td style="text-align:left;">
+per country
+</td>
+<td style="text-align:left;">
+<a href="https://www.fao.org/faostat/en/#data/QCL">Food and Agriculture
+Organization</a>
+</td>
+<td style="text-align:left;">
+livestock
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Livestock trade
+</td>
+<td style="text-align:left;">
+yearly
+</td>
+<td style="text-align:left;">
+bilateral
+</td>
+<td style="text-align:left;">
+<a href="https://www.fao.org/faostat/en/#data/QCL">Food and Agriculture
+Organization</a>
+</td>
+<td style="text-align:left;">
+livestock
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Crop production
+</td>
+<td style="text-align:left;">
+yearly
+</td>
+<td style="text-align:left;">
+per country
+</td>
+<td style="text-align:left;">
+<a href="https://www.fao.org/faostat/en/#data/QCL">Food and Agriculture
+Organization</a>
+</td>
+<td style="text-align:left;">
+crop
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Crop trade
+</td>
+<td style="text-align:left;">
+yearly
+</td>
+<td style="text-align:left;">
+bilateral
+</td>
+<td style="text-align:left;">
+<a href="https://www.fao.org/faostat/en/#data/TCL">Food and Agriculture
+Organization</a>
+</td>
+<td style="text-align:left;">
+crop
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Agricultural product trade
+</td>
+<td style="text-align:left;">
+yearly
+</td>
+<td style="text-align:left;">
+bilateral
+</td>
+<td style="text-align:left;">
+<a href="https://comtradeplus.un.org/">United Nations Comtrade
+Database</a>
+</td>
+<td style="text-align:left;">
+both
+</td>
+</tr>
+</tbody>
+</table>
+<p>The entire data ingest and processing pipeline can be run using the
+following command in the R console.</p>
+<pre><code>targets::tar_make(c(augmented_livestock_data_aggregated, augmented_crop_data_aggregated))</code></pre>
+<p>or using the following command in Terminal</p>
+<pre><code>Rscript -e &#39;targets::tar_make(c(augmented_livestock_data_aggregated, augmented_crop_data_aggregated))&#39;</code></pre>
+<p>The <code>augmented_livestock_data_aggregated</code> or
+<code>augmented_crop_data_aggregated</code> target endpoint is the full
+model dataset, which combines all predictor and outcome data sources,
+used for training and validation. Note that these may take over a day to
+run due to the data download steps (particularly Comtrade). Below we
+provide guidance for testing subsets of the data ingest pipeline with
+faster run times. Note, running <code>tar_make()</code> without
+specifying a target will run all livestock and crop targets.</p>
+<div id="pipeline-testing" class="section level2">
+<h2>Pipeline testing</h2>
+<p>Given specific requirements (such as API tokens) and length of run
+times described above, we recommend the following steps for someone
+trying out this data ingest and processing pipeline for the first time
+or for someone reproducing the outputs:</p>
+<ol style="list-style-type: decimal">
+<li>Test that the pipeline works as described by running a data source
+pipeline that doesn’t require any tokens</li>
+</ol>
+<p>For the livestock pipeline, we recommend the pipelines for data
+retrieved from the FAO, UN Statistics Division, CIA World Factbook, and
+the World Bank. We would expect this pipeline to complete in ~20
+minutes. To run these, the following command can be used in the R
+console:</p>
+<pre><code>targets::tar_make(c(country_yearly_human_population, country_yearly_gdp, connect_static_shared_borders, country_yearly_taxa_population, connect_yearly_fao_trade_livestock, country_yearly_vet_population))</code></pre>
+<p>For the crop pipeline, we recommend the pipelines for data retrieved
+from the FAO, UN Statistics Division, CIA World Factbook, the World
+Bank, EPPO, IPPC, and NAPPO. We would expect this pipeline to complete
+in ~4 hours. To run these, the following command can be used in the R
+console:</p>
+<pre><code>targets::tar_make(c(country_yearly_human_population, country_yearly_gdp, connect_static_shared_borders, country_yearly_crop_production, connect_yearly_fao_trade_crop, eppo_index_processed, ippc_table_processed, nappo_table_processed))</code></pre>
+<p>Note that
+<code>source(&quot;tar_plans/_targets_data_downloads_crop.R&quot;)</code> and
+<code>source(&quot;tar_plans/_targets_data_processing_crop.R&quot;)</code> are
+currently commented out in the <code>_targets.R</code> file. This needs
+to be changed in order to run the crop data ingest and processing
+pipeline.</p>
+<p>This step will give an indication that the general pipeline works as
+expected if the run completes without errors. For a faster test, you
+could run the world bank GDP data pipeline, which should complete in
+seconds: <code>targets::tar_make(country_yearly_gdp)</code>.</p>
+<ol start="2" style="list-style-type: decimal">
+<li>Test the pipeline for the steps requiring authentication
+keys/tokens</li>
+</ol>
+<p>For the livestock pipeline, the steps requiring authentication
+keys/tokens that complete fast are for data retrieved from the IUCN and
+WOAH (via EcoHealth Alliance’s DoltHub database). We would expect this
+pipeline to complete in ~10 minutes. To run these, the following command
+can be used in the R console:</p>
+<pre><code>targets::tar_make(c(connect_static_wildlife_migration, connect_livestock_outbreaks))</code></pre>
+<p>For the crop pipeline, the step requiring authentication keys/tokens
+that completes fast is for disease name standardization using the EPPO
+Global Database. We would expect this pieline to complete in ~30
+minutes. To run this, the following command can be used in the R
+console:</p>
+<pre><code>targets::tar_make(pest_names_standardized)</code></pre>
+<p>This step will test whether you have set up your authentication keys
+appropriately.</p>
+<ol start="3" style="list-style-type: decimal">
+<li>Run the pipeline for the UN Comtrade database</li>
+</ol>
+<p>The remaining source, the UN Comtrade database, requires
+authentication and also runs the longest (Based on API call limits and
+depending on server traffic, it could be 2-4 days). We recommend running
+this last, using this command in the R console:</p>
+<pre><code>targets::tar_make(connect_yearly_comtrade_livestock)
+targets::tar_make(connect_yearly_comtrade_crop)</code></pre>
+<p><strong>Addressing server errors with the UN Comtrade download
+pipeline</strong></p>
+<p>The download pipeline for the trade data through the UN Comtrade data
+API uses authentication keys for a basic individual free subscription.
+This type of subscription has specified <a href="https://unstats.un.org/wiki/display/comtrade/New+Comtrade+FAQ+for+First+Time+Users#NewComtradeFAQforFirstTimeUsers-Andwhat&#39;sthedownloadcapacityforsubscriptionusers?">rate
+limits</a> which has been taken into account in the pipeline. However,
+performing bulk download with a basic individual free subscription is
+known to infrequently produce
+<code>HTTP 500 Internal Server Error</code>. To avoid this, UN Comtrade
+recommends a premium individual or premium institution subscription
+which allows access to UN Comtrade’s bulk API (click <a href="https://unstats.un.org/wiki/display/comtrade/New+Comtrade+FAQ+for+First+Time+Users#NewComtradeFAQforFirstTimeUsers-Andwhat&#39;sthedownloadcapacityforsubscriptionusers?">here</a>
+for details on the subscription packages).</p>
+<p>The user can prevent these infrequent errors from stopping the full
+pipeline by setting an environment variable</p>
+<pre><code>TARGETS_ERROR=&quot;null&quot;</code></pre>
+<p>Because the Comtrade download pipeline uses dynamic targets
+branching, this setting allows the pipeline to skip over any failed
+branches and continue to run subsequent steps using only the data that
+has been successfully downloaded. Then, a subsequent call to re-run the
+pipeline will run the downloads <em>only</em> for the remaining data
+that have not been downloaded yet. We recommend re-running the download
+pipeline at a later time after an
+<code>HTTP 500 Internal Server Error</code>, particularly at less busy
+times (e.g. evenings, weekends).</p>
+</div>
+<div id="detecting-changes-in-data-sources" class="section level2">
+<h2>Detecting changes in data sources</h2>
+<p>The workflow has been set up to detect that the data from source has
+changed and these steps will re-run. For the Comtrade data and the FAO
+production and trade data specifically, we have noted that during the
+period of developing this pipeline these data sources changed field
+names, which caused errors. We have now put in place a check system that
+will detect these changes and provide a more informative error message
+regarding this during the data processing step and recommend that data
+processing functions be updated/refactored to adjust for the new field
+names. For Comtrade, we have put in place a check in the pipeline that
+runs prior to the start of the Comtrade download step and provides a
+warning that Comtrade field names have changed. Because the Comtrade
+download step takes the most time in the pipeline, the data check
+doesn’t stop the pipeline from performing the download but instead gives
+the warning in advance to allow for updating/refactoring of functions
+while the download is progressing. For all other data, the same checks
+are performed in case any change happens, but for the most part we
+expect these to remain the same.</p>
+</div>
+<div id="data-storage" class="section level2">
+<h2>Data storage</h2>
+<p>All raw data from the various data sources are downloaded and then
+stored before any processing or standardization inside the
+<code>data-raw/</code> directory.</p>
+<p>Unless the user has enabled AWS object storage (see Project settings
+above), all processed data are stored as <a href="https://cran.r-project.org/web/packages/qs/vignettes/vignette.html">qs</a>
+files in the <code>_targets/objects/</code> directory.</p>
+<p>Data objects can be viewed using the <code>targets</code> package.
+For example, to view GDP data:</p>
+<pre><code>targets::tar_read(country_yearly_gdp)</code></pre>
+<p>Data schemas and descriptions are available as csv files in the
+<code>inst/</code> directory.</p>
+<ul>
+<li><p><code>inst/data_dictionary_raw.csv</code> contains schemas for
+the raw downloaded data files, and</p></li>
+<li><p><code>inst/data_dictionary.csv</code> contains schemas for the
+processed data</p></li>
+</ul>
+<p>In the crop pipeline, several intermediate data products are stored
+in the repository to allow the user to skip the step of regenerating
+resource-intensive steps. These files are automatically incorporated
+into the pipeline, and the code to generate these files is currently
+commented out in <code>_targets.R</code>.</p>
+<ul>
+<li><p><code>data-raw/comtrade-crop/connect_yearly_comtrade_crop.csv</code></p></li>
+<li><p><code>data-raw/crop-data-extracted/extracted_data_complete.csv</code></p></li>
+<li><p><code>data-raw/crop-disease-lookup/crop_report_index.csv</code></p></li>
+</ul>
+<p><code>repel1-extracts</code> contains model objects and predictions
+from the Phase I REPEL project.</p>
+</div>
+<div id="crop-disease-data-extraction" class="section level2">
+<h2>Crop disease data extraction</h2>
+<p>The crop pipeline uses OpenAI GPT-4 large-language model (LLM)
+(specifically, gpt-4-1106-preview ), accessed via Web API, to extract
+data from free text crop disease outbreak reports. The extraction was
+run with EPPO reports through December 2023, and IPPC and NAPPO reports
+through February 2024. The output is saved as parquet files in the
+<code>data-raw/crop-data-extracted/</code> directory. The complete
+output, including manually reviewed data, is saved as
+<code>extracted_data_complete.csv</code> in the same directory.</p>
+<p>Future updates can be performed with NLP or manually.</p>
+<div id="nlp-approach" class="section level3">
+<h3>NLP approach</h3>
+<p>To run the extractions with NLP, you need an OpenAI account with an
+API key, saved as</p>
+<pre><code>OPENAI_API_KEY=YOUR_OPENAI_API_KEY_HERE</code></pre>
+<p>Currently,
+<code>source(&quot;tar_plans/_targets_data_extraction_crop.R&quot;)</code> is
+commented out in the <code>_targets.R</code> file, to bypass the
+extraction pipeline and use the csv file of extracted data in subsequent
+targets. This needs to be uncommented for the extraction pipeline to
+rerun.</p>
+<p>Make a backup of <code>extracted_data_complete.csv</code>, then
+run</p>
+<pre><code>targets::tar_make(extracted_data_complete)</code></pre>
+</div>
+<div id="manual-approach" class="section level3">
+<h3>Manual approach</h3>
+<p>To perform manual updates, run</p>
+<pre><code>targets::tar_load(extracted_data)
+extracted_data &lt;- read.csv(extracted_data)
+extracted_data &lt;- extracted_data |&gt; dplyr::mutate(date_published = lubridate::as_date(date_published))
+
+targets::tar_make(crop_report_index)
+targets::tar_load(crop_report_index)
+crop_report_index &lt;- crop_report_index |&gt; dplyr::mutate(issue = as.integer(issue))
+
+new_reports &lt;- dplyr::anti_join(crop_report_index, extracted_data, by = dplyr::join_by(source, pest, preferred_name, country, date_published, year_published, issue, eppo_unique_id, url))
+
+write.csv(new_reports, &quot;data-raw/crop-data-extracted/data_update_manual_extraction.csv&quot;)</code></pre>
+<p>This will create a csv of new records since the pipeline was last
+run. Add the columns <code>disease_manual</code>,
+<code>year_manual</code>, <code>month_manual</code>,
+<code>presence_manual</code>, and <code>manually_extracted</code>.</p>
+<p>Then read each report and record:</p>
+<ul>
+<li><p>The scientific name of the disease or pest in the column
+<code>disease_manual</code>. Refer to the <a href="https://gd.eppo.int/">EPPO Global Database</a> for the preferred
+name.</p></li>
+<li><p>The year of the outbreak in the column <code>year_manual</code>.
+The year should be in YYYY format, or NA if not mentioned in the
+report.</p></li>
+<li><p>The month of the outbreak in the column
+<code>month_manual</code>. Use the full English name of the month, or NA
+if not mentioned in the report.</p></li>
+<li><p>The disease status in the country in the column
+<code>presence_manual</code>. The status can be “present”, “absent”, or
+NA if it is unclear from the report.</p></li>
+</ul>
+<p>Note that some EPPO reports include multiple diseases and/or
+countries, so double-check the <code>preferred_name</code> and
+<code>country</code> columns to make sure the data is recorded in the
+right place. After reading each report, enter TRUE in the column
+<code>manually_extracted</code>.</p>
+<p>Then make a backup of
+<code>data-raw/crop-data-extracted/extracted_data_complete.csv</code>
+and run the following</p>
+<pre><code>extracted_data_complete_old &lt;- read.csv(&quot;data-raw/crop-data-extracted/extracted_data_complete.csv&quot;)
+data_update_manual_extraction &lt;- read.csv(&quot;data-raw/crop-data-extracted/data_update_manual_extraction.csv&quot;)
+extracted_data_complete_new &lt;- dplyr::bind_rows(extracted_data_complete_old, data_update_manual_extraction)
+write.csv(extracted_data_complete_new, &quot;data-raw/crop-data-extracted/extracted_data_complete.csv&quot;)</code></pre>
+</div>
+</div>
+</div>
+<div id="model-fitting" class="section level1">
+<h1>Model fitting</h1>
+<p>Data are aggregated to the yearly time scale, such that we are
+predicting outbreak probabilities using 12-month windows. For example,
+we predict disease outbreak probability for Jan-Dec 2022 based on
+conditions in Jan-Dec 2021.</p>
+<p>The full dataset is randomly split into training (80%) and validation
+(20%) data. The training data are scaled and used to fit a linear mixed
+effects model, with random effects for each disease.</p>
+<p>The full pipeline including data ingest, fitting, and prediction can
+be run with the following code. The model fitting step takes ~1 hr for
+the livestock model and ~24 hrs for the crop model.</p>
+<pre><code>targets::tar_make(repel_full_pipeline)
+targets::tar_make(repel_full_crop_pipeline) </code></pre>
+<p>All elements of the model pipeline can be inspected. This may be
+especially useful to view the model dataset:</p>
+<pre><code>targets::tar_read(augmented_livestock_data_aggregated)
+targets::tar_read(augmented_crop_data_aggregated)</code></pre>
+<p>Or the model object:</p>
+<pre><code>targets::tar_read(repel_model)
+targets::tar_read(repel_model_crop)</code></pre>
+<div id="model-reports" class="section level2">
+<h2>Model reports</h2>
+<ul>
+<li><p><code>reports/comparison_repel_models.html</code> was developed
+to confirm that our Phase II pipeline can reproduce the dataset and
+model from the previous Phase I pipeline. Note that to match the Phase I
+approach, this report represents the Phase II model on the monthly time
+scale.</p></li>
+<li><p><code>reports/repel_model_updates.html</code> presents livestock
+model results with a high-level list of the changes that have been made
+to the model since reproducing the Phase I pipeline.</p></li>
+<li><p><code>reports/repel_crop_model_updates.html</code> presents crop
+model results.</p></li>
+</ul>
+</div>
+<div id="model-cache-and-retraining" class="section level2">
+<h2>Model cache and retraining</h2>
+<p>The model was trained and validated on data ending in September 2022.
+This version and associated input data and validation steps are
+preserved in the <a href="https://github.com/ecohealthalliance/repel2-battelle/releases/tag/data-cache">Data
+Cache</a> GitHub version release. To avoid unnecessarily refitting the
+model when data is updated for predictions, the pipeline can be run with
+cached data. This allows new data downloads, processing, and predictions
+to run with a fixed version of the model. Set the following environment
+variable:</p>
+<pre><code>LIVESTOCK_MODEL_USE_CACHE=TRUE
+CROP_MODEL_USE_CACHE=TRUE</code></pre>
+<p>If/when there is a need to refit the model with more recent data, the
+user can set the maximum training date as an environment variable, with
+the date in the format yyyy-mm.</p>
+<pre><code>LIVESTOCK_MODEL_MAX_TRAINING_DATE=&quot;2022-09&quot;
+CROP_MODEL_MAX_TRAINING_DATE=&quot;2022-09&quot;</code></pre>
+<p>To invalidate and refit the model:</p>
+<ol style="list-style-type: decimal">
+<li><p><code>targets::tar_invalidate(repel_full_pipeline)</code>
+invalidates the full livestock pipeline including the model.
+<code>targets::tar_invalidate(repel_full_crop_pipeline)</code>
+invalidates the full crop pipeline including the model.</p></li>
+<li><p>Set an environment variable to specify that the model should not
+be pulled from the cache.</p></li>
+</ol>
+<pre><code>LIVESTOCK_MODEL_USE_CACHE=FALSE
+CROP_MODEL_USE_CACHE=FALSE</code></pre>
+<ol start="3" style="list-style-type: decimal">
+<li><p><code>targets::tar_make(repel_full_pipeline)</code> refits the
+livestock model, which takes ~1 hr, and updates predictions and reports.
+<code>targets::tar_make(repel_full_crop_pipeline)</code> refits the crop
+model, which takes ~24 hrs, and updates predictions and
+reports.</p></li>
+<li><p>Run the script <code>inst/cache_data_objects.R</code> to cache
+the new data objects. Within the script, you can specify a new GitHub
+version release to stash the data.</p></li>
+<li><p>Set <code>LIVESTOCK_MODEL_USE_CACHE</code> or
+<code>CROP_MODEL_USE_CACHE</code> to <code>TRUE</code> to prevent the
+model from refitting when there are future data changes. With this
+setting, predictions can be updated with new data (see below), but not
+the model.</p></li>
+</ol>
+</div>
+</div>
+<div id="model-predictions" class="section level1">
+<h1>Model predictions</h1>
+<p>The targets <code>repel_predictions</code> and
+<code>repel_predictions_crop</code> provide model predictions for the
+full dataset, including 12 months ahead from when the data was last
+updated.</p>
+<p>The targets <code>repel_predictions_priority_diseases_usa</code> and
+<code>repel_predictions_priority_diseases_usa_crop</code> are the output
+of this function for priority diseases entering the US.</p>
+<p>The target <code>repel_predictions_crop_new_diseases</code> provides
+model predictions for priority crop diseases that were not reported in
+the data sources.</p>
+<p>The targets
+<code>repel_variable_importance_priority_diseases_usa</code> and
+<code>repel_variable_importance_priority_diseases_usa_crop</code>
+contain two data frames pertaining to priority diseases entering the US.
+<code>variable_importance</code> is the importance of each bilateral
+predictor variable for each month-country-disease prediction.
+<code>variable_importance_by_origin</code> disagreggates the variable
+importance by outbreak origin countries.</p>
+<div id="updating-model-predictions" class="section level2">
+<h2>Updating model predictions</h2>
+<p>The model can generate predictions for 12 months ahead from when the
+data was last updated. To update the data, we suggest the following
+steps:</p>
+<ol style="list-style-type: decimal">
+<li><p>Make a backup of your existing <code>data-raw</code>
+directory.</p></li>
+<li><p>Create an environment variable to allow Comtrade data to be
+redownloaded. This overrides the default time-saving behavior of
+skipping over files that have already been downloaded.</p></li>
+</ol>
+<pre><code>OVERWRITE_COMTRADE_LIVESTOCK_DOWNLOADED=TRUE
+OVERWRITE_COMTRADE_CROP_DOWNLOADED=TRUE</code></pre>
+<ol start="3" style="list-style-type: decimal">
+<li><p>Run <code>source(&quot;inst/invalidate_livestock_pipeline.R&quot;)</code>
+or <code>source(&quot;inst/invalidate_crop_pipeline.R&quot;)</code>.</p></li>
+<li><p>Set an environment variable for the current month, as follows.
+This tells the prediction function how far ahead it can make
+predictions.</p></li>
+</ol>
+<pre><code>LIVESTOCK_MODEL_LAST_DATA_UPDATE=&quot;2023-12&quot;
+CROP_MODEL_LAST_DATA_UPDATE=&quot;2023-12&quot;</code></pre>
+<ol start="5" style="list-style-type: decimal">
+<li>Run <code>targets::tar_make(repel_full_pipeline)</code> or
+<code>targets::tar_make(repel_full_crop_pipeline)</code> to rerun the
+full data download and processing pipeline. Note that this will not
+refit the model unless the user has
+<code>LIVESTOCK_MODEL_USE_CACHE</code>or
+<code>CROP_MODEL_USE_CACHE</code> environment variable set to FALSE (see
+above).</li>
+</ol>
+</div>
+</div>
+<div id="nowcast" class="section level1">
+<h1>NowCast</h1>
+<p>The NowCast model estimates current and next-year livestock disease
+status (i.e., presence or absence) at the country level. It was
+previously developed under Phase I REPEL work, and was recreated under
+the current effort using updated WAHIS data. However, we found that
+including NowCast endemic disease status in the current REPEL travel
+model does not increase model performance, and therefore we did not
+include it in the final model. Here we document the code and
+reproducibility for this NowCast model.</p>
+<p>NowCast steps are entirely in
+<code>tar_plans/_targets_nowcast.R</code>, which is currently commented
+out in the main <code>_targets.R</code> pipeline. The pipeline to run
+the NowCast consists of steps to process WAHIS six month disease status
+reports, augment with predictor variables that are also represented in
+the travel model (e.g., GDP, population), fit a boosted regression tree
+model, calculate validation statistics on holdout data, and generate
+predictions.</p>
+<p>To incorporate the NowCast model into the travel pipeline, the user
+must a) uncomment <code>tar_plans/_targets_nowcast.R</code> in
+<code>_targets.R</code>, and b) specify
+<code>repel_nowcast_predictions</code> into the <code>nowcast</code>
+argument in the function <code>process_wahis_outbreaks()</code> within
+the file
+<code>tar_plans/_targets_data_processing_livestock.R</code>.</p>
+</div>
+
+
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

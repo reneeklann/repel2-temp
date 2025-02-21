@@ -1,0 +1,663 @@
+---
+title: Comparison of Phase I and II models datasets - updated
+author: Ernest Guevarra, Emma Mendelsohn and Noam Ross, EcoHealth Alliance
+date: "`r Sys.Date()`"
+output: 
+  rmarkdown::html_document:
+    toc: true
+    keep_md: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE, 
+  message = FALSE, 
+  warning = FALSE, 
+  fig.height = 8, 
+  fig.width = 12
+)
+
+## Load packages and project specific functions ----
+source(here::here("packages.R"))
+for (f in list.files(here::here("R"), full.names = TRUE)) source (f)
+
+## Phase II version ----
+version <- "v0.2.3"
+```
+
+# Summary
+
+This report is part of the REPEL model importation task (Task 1) of FASRAC Phase II Frequency Model for Accidental Introduction.
+To reproduce the Phase I REPEL model, we have imported and refactored the original pipeline for data ingestion, transformation, augmentation, and model training.
+Here, we compare the current Phase II dataset and model against Phase I to confirm we are able to produce comparable model results given changes in tooling and upstream data sources.
+This step establishes a baseline before we recalibrate the model from a monthly to a yearly timescale and implement other improvements.
+
+# Data Comparison
+
+For the purposes of matching the Phase I model, we have filtered the current dataset to the date range used in the Phase I model, from January 2005 to May 2022.
+Below, we summarize the key differences found from data generated between the Phase I and II pipelines, causes and implications.
+
+We compare two datasets:
+
+1)  **Aggregated dataset**. Each row in this dataset represents a unique combination of month, country, and disease. All possible combinations are represented. For the bilateral variables (number of migratory wildlife from outbreaks, number of shared borders with outbreaks, value of imported agricultural goods from outbreaks, number of livestock heads from outbreaks), the values represent the *total* imports from countries with outbreaks. For example, if estimating the probability of an African Swine Fever (ASF) outbreak in the United States in January 2022, the relevant features are the total values of migratory wildlife, shared borders, trade dollars, and livestock heads summed across all countries with current ASF outbreaks. These aggregated data are used for training the model.
+2)  **Disaggregated dataset**. In this dataset, bilateral variables are disaggregated by origin country. Each row is the unique combination of month, country, disease, *and* origin country. In the example of estimating ASF outbreak probability in the US, this dataset provides the number of migratory wildlife, shared borders, trade dollars, and livestock heads coming separately from *each* country with a current ASF outbreak. This dataset is not used for training, but is used for model interpretation to estimate the contribution to risk from each source country.
+
+Our comparison approach consists of checks for data structure and quantitative values.
+We confirmed that the expected fields from each data source are present and that the count of records is sufficiently similar.
+We expect a small difference in record count will be due to non-standard names being introduced in updated records though we do not expect these corrections to have much bearing on the model results.
+
+We quantified the difference in the variables between Phase I and II.
+For logical (TRUE/FALSE) variables, we calculated the percent of matching records.
+For the outcome variable `outbreak_status`, which indicates whether or not an outbreak has started within a country in a given month, we found less than a 0.5% difference from Phase I. The other logical variables have a similarly low difference in values, all within 2%.
+
+For the continuous variables, we evaluated the median percent change in Phase II relative to Phase I. We found the changes were less less than 1% for all variables except three: We found larger differences in three variables: taxa population, veterinarian population, and COMTRADE agricultural trade dollars.
+
+Overall, this comparison confirms that the Phase I and II datasets are sufficiently similar to continue to model replication.
+While there are some expected differences in the data, these do not have a large impact on model results (see below).
+
+```{r}
+## Load Phase I data ----
+# these are downloaded as targets files
+targets::tar_load(c(repel1_lme_mod_network, repel1_network_lme_augment_predict_by_origin,  repel1_network_lme_augment_predict_by_origin), store = here::here("_targets_s3"))
+
+previous_augmented_data_disaggregated <- readr::read_csv(here::here(repel1_network_lme_augment_predict_by_origin))
+previous_augmented_data_aggregated <- readr::read_csv(here::here(repel1_network_lme_augment_predict_by_origin))
+
+date_range <- range(previous_augmented_data_aggregated$month) |> as.Date()
+
+lme_mod_network_previous <- readr::read_rds(here::here(repel1_lme_mod_network))
+
+## Load Phase II data ----
+# use relic to pin to a specific version
+current_augmented_data_aggregated <- relic::tar_read_version(augmented_livestock_data_aggregated, ref = version, repo = "ecohealthalliance/repel2", store = "_targets_s3")
+current_augmented_data_disaggregated <- relic::tar_read_version(augmented_livestock_data_disaggregated, ref = version, repo = "ecohealthalliance/repel2", store = "_targets_s3")
+lme_mod_network <- relic::tar_read_version(lme_mod_network, ref = version, repo = "ecohealthalliance/repel2", store = "_targets_s3")
+repel_validation_data_scaled <- relic::tar_read_version(repel_validation_data_scaled, ref = version, repo = "ecohealthalliance/repel2", store = "_targets_s3")
+
+current_augmented_data_aggregated <- current_augmented_data_aggregated |> 
+  rename(ots_trade_dollars_from_outbreaks = comtrade_dollars_from_outbreaks) # this was renamed in current version 
+current_augmented_data_disaggregated <- current_augmented_data_disaggregated  |> 
+  rename(ots_trade_dollars_from_outbreaks = comtrade_dollars_from_outbreaks) # this was renamed in current version 
+
+# filter current dataset to previous date
+current_augmented_data_aggregated <- current_augmented_data_aggregated |> 
+  dplyr::filter(month <= date_range[[2]]) 
+
+current_augmented_data_disaggregated <- current_augmented_data_disaggregated |> 
+  dplyr::filter(month <= date_range[[2]]) 
+```
+
+## Data Structure Comparison
+
+### Variable Check
+
+Both the Phase I and Phase II datasets have the following variables:
+
+```{r}
+tibble::tibble(
+  `Dataset Variables` = names(current_augmented_data_aggregated)) |>
+  knitr::kable(escape = FALSE) |>
+  kableExtra::kable_paper(full_width = FALSE, position = "left")
+
+# tibble::tibble(
+#   `Variables in previous dataset` = names(previous_augmented_data_aggregated) |>
+#     paste(collapse = "<br>"),
+#   `Variables in current/updated dataset` = names(current_augmented_data_aggregated) |>
+#     paste(collapse = "<br>")
+# ) |>
+#   knitr::kable(escape = FALSE) |>
+#   kableExtra::kable_paper(full_width = FALSE, position = "left")
+```
+
+```{r, include=FALSE}
+vars_not_in_current <- names(previous_augmented_data_aggregated) |>
+  #(\(x) x[2:19])() |>
+  (\(x) !x %in% names(current_augmented_data_aggregated))() |>
+  (\(x) names(previous_augmented_data_aggregated)[x])()
+
+vars_not_in_current
+```
+
+In addition to the above variables, the Phase I dataset had the following variables not in the Phase II dataset: `id`, `db_network_etag`, and `predicted_outbreak_probability`.
+The first two are identifier variables that are specific to the way the previous dataset was stored.
+`predicted_outbreak_probability` is the model prediction output which is not yet included with the Phase II dataset.
+
+The disaggregated datasets from Phase I and II have the same fields as the aggregated datasets, with the addition of a field for `country_origin`.
+
+```{r, include=FALSE}
+tibble::tibble(
+  `Variables in previous dataset` = names(previous_augmented_data_disaggregated) |>
+    paste(collapse = "<br>"),
+  `Variables in current/updated dataset` = names(current_augmented_data_disaggregated) |>
+    paste(collapse = "<br>")
+) |>
+  knitr::kable(escape = FALSE) |>
+  kableExtra::kable_paper(full_width = FALSE, position = "left")
+```
+
+```{r, include=FALSE}
+vars_not_in_current <- names(previous_augmented_data_disaggregated) |>
+  #(\(x) x[2:19])() |>
+  (\(x) !x %in% names(current_augmented_data_disaggregated))() |>
+  (\(x) names(previous_augmented_data_disaggregated)[x])()
+
+vars_not_in_current
+```
+
+### Records Check
+
+There are more records in the Phase II dataset than Phase I due to the following reasons:
+
+1)  In Phase I we had 58 unique diseases and in Phase II we have 78 unique diseases.
+This includes 27 diseases in the Phase II dataset that are not in Phase I and 7 diseases that are in the Phase I and not in Phase II. Some are legitimate changes or new records that have been added to WAHIS (e.g., SARS-CoV-2), while others are due to non-standard names introduced in data updates that will be addressed in our next task.
+
+2)  In Phase I we had 170 unique countries and in Phase II we have 178 unique countries represented.
+Fiji, Guadeloupe, Greenland, Guyana, Jamaica, Samoa, Cuenta, and Melilla were added to the database.
+
+3)  In Phase I some countries were missing data for months that were unreported in 2021 and 2022.
+These have been backfilled.
+
+Total records
+
+```{r, fig.align = "left"}
+
+previous_aggregated <- nrow(previous_augmented_data_aggregated)
+current_aggregated <- nrow(current_augmented_data_aggregated)
+
+previous_disaggregated <- nrow(previous_augmented_data_disaggregated)
+current_disaggregated <- nrow(current_augmented_data_disaggregated)
+
+records_tab <- tibble::tibble(dataset = c("aggregated", "disaggregated"),
+                              previous_count = c(previous_aggregated, previous_disaggregated),
+                              current_count = c(current_aggregated, current_disaggregated)) |> 
+  dplyr::mutate(difference = current_count - previous_count) 
+
+records_tab |>
+  knitr::kable(
+    col.names = c("Dataset", "Number of records - Phase I", "Number of records - Phase II", "Difference")
+  ) |>
+  kableExtra::kable_paper(
+    full_width = FALSE, 
+    position = "left"
+  )
+
+# For previous_augmented_data_aggregated we would expect the number of rows to be 58 diseases * 209 months * 170 countries
+# The number is a bit lower because there were countries that had missing data for the last year (2022)
+
+# For current_augmented_data_aggregated we the number of rows is as expected 78 diseases * 209 months * 176 countries
+
+```
+
+<details>
+
+<summary>Records by country - aggregated data (click to expand)</summary>
+
+```{r}
+records_by_country <- table(previous_augmented_data_aggregated$country_iso3c) |>
+  data.frame() |>
+  dplyr::full_join(
+    y = table(
+      current_augmented_data_aggregated |>
+        dplyr::pull(country_iso3c)
+    ) |>
+      data.frame(),
+    by = "Var1"
+  ) |>
+  dplyr::mutate(
+    country_name = countrycode::countrycode(
+      Var1, origin = "iso3c", destination = "country.name"
+    ),
+    .after = Var1
+  ) |>
+  dplyr::rename(country_code = Var1, n_previous = Freq.x, n_current = Freq.y) |>
+  dplyr::mutate(difference = n_current - n_previous)
+
+knitr::kable(
+  x = records_by_country,
+  col.names = c(
+    "Country code", "Country name",
+    "Number of records - Phase I", "Number of records - Phase II",
+    "Difference"
+  )
+) |>
+  kableExtra::kable_styling(full_width = FALSE, position = "left")
+```
+
+</details>
+
+<details>
+
+<summary>Records by year - aggregated data (click to expand)</summary>
+
+```{r}
+records_by_year <- lubridate::year(previous_augmented_data_aggregated$month) |>
+  table() |>
+  data.frame() |>
+  dplyr::full_join(
+    y = table(
+      current_augmented_data_aggregated |>
+        dplyr::pull(month) |>
+        lubridate::year()
+    ) |>
+      data.frame(),
+    by = "Var1"
+  ) |>
+  dplyr::rename(
+    year = Var1,
+    n_previous = Freq.x,
+    n_current = Freq.y
+  ) |>
+  dplyr::mutate(variance = n_current - n_previous)
+
+records_by_year |>
+  knitr::kable(
+    col.names = c(
+      "Year",
+      "Number of records - Phase I", "Number of records - Phase II",
+      "Difference"
+    )
+  ) |>
+  kableExtra::kable_styling(full_width = FALSE, position = "left")
+
+```
+
+</details>
+
+<details>
+
+<summary>Records by disease - aggregated data (click to expand)</summary>
+
+```{r}
+records_by_disease <- table(previous_augmented_data_aggregated$disease) |>
+  data.frame() |>
+  dplyr::mutate(
+    Var1 = stringr::str_replace_all(Var1, "_", " ") |>
+      stringr::str_replace_all("leishmaniosis", "leishmaniasis") |>
+      stringr::str_replace_all(
+        "primary screwworm new world screwworm", 
+        "primary screwworm, new world screwworm"
+      ) |>
+      stringr::str_replace_all("foot and mouth disease", "foot-and-mouth disease")
+  ) |>
+  dplyr::full_join(
+    y = table(
+      current_augmented_data_aggregated |>
+        dplyr::pull(disease)
+    ) |>
+      data.frame(),
+    by = "Var1"
+  ) |>
+  dplyr::rename(disease = Var1, n_previous = Freq.x, n_current = Freq.y) |>
+  dplyr::mutate(variance = n_current - n_previous)
+
+knitr::kable(
+  x = records_by_disease,
+  col.names = c(
+    "Disease",
+    "Number of records - Phase I", "Number of records - Phase II",
+    "Difference"
+  )
+) |>
+  kableExtra::kable_styling(full_width = FALSE, position = "left")
+```
+
+</details>
+
+## Quantitative Comparison
+
+We performed the quantitative data comparison on the country and diseases that both datasets have in common, resulting in a total of 170 countries and 51 diseases being compared.
+
+### Logical Variables
+
+We calculated the percent of matching records for the logical (TRUE/FALSE) variables.
+The outcome variable `outbreak_status`, which indicates whether or not an outbreak has started within a country, has less than a 0.5% difference from Phase I. The other logical variables have a similarly low difference in values, all with a 2% or less difference.
+
+```{r}
+### Get countries in both datasets
+country_codes <- intersect(unique(previous_augmented_data_aggregated$country_iso3c), unique(current_augmented_data_aggregated$country_iso3c))
+
+## Get diseases that are in both datasets (with minimal cleaning effort...comes out to 51)
+# first modify previous_augmented_data_aggregated to match disease names
+previous_augmented_data_aggregated_disease_lookup <- previous_augmented_data_aggregated |>
+  distinct(disease) |> 
+  dplyr::mutate(
+    disease_match = stringr::str_replace_all(disease, "_", " ") |>
+      stringr::str_replace_all("leishmaniosis", "leishmaniasis") |>
+      stringr::str_replace_all(
+        "primary screwworm new world screwworm", 
+        "primary screwworm, new world screwworm"
+      ) |>
+      stringr::str_replace_all("foot and mouth disease", "foot-and-mouth disease")
+  ) 
+
+previous_augmented_data_aggregated_match <- previous_augmented_data_aggregated |> 
+  dplyr::left_join(previous_augmented_data_aggregated_disease_lookup) |> 
+  dplyr::select(-disease) |> 
+  dplyr::rename(disease = disease_match)
+
+disease_list <- intersect(unique(previous_augmented_data_aggregated_match$disease), unique(current_augmented_data_aggregated$disease))
+
+## filter datasets down for overlapping countries and diseases (which is most of them)
+previous_data_summary <- previous_augmented_data_aggregated_match |>
+  dplyr::filter(country_iso3c %in% country_codes & disease %in% disease_list) 
+
+current_data_summary <- current_augmented_data_aggregated |>
+  dplyr::filter(country_iso3c %in% country_codes & disease %in% disease_list) 
+
+## join together for comparison
+comparison_df <- dplyr::left_join(
+  previous_data_summary,
+  current_data_summary,
+  by = c("country_iso3c", "month", "disease")
+)
+
+
+```
+
+```{r}
+# calculate % difference for logical variables
+logic_names <- comparison_df |> 
+  dplyr::select_if(is.logical) |> 
+  colnames()
+
+logic_names_x <- logic_names[str_ends(logic_names, "\\.x")] |> sort()
+logic_names_y <- logic_names[str_ends(logic_names, "\\.y")] |> sort()
+
+logical_comparison <- purrr::map2_dfr(logic_names_x, logic_names_y, function(x, y){
+  xdat <- comparison_df |> pull(!!x)
+  ydat <- comparison_df |> pull(!!y)
+  
+  diff_count = xdat != ydat
+  
+  tibble::tibble(variable = str_remove(x, "\\.x"), perc_different = scales::percent(sum(diff_count)/length(diff_count)))
+})
+
+logical_comparison|>
+  knitr::kable(
+    col.names = c("Logical Variable", "Difference (% of total records)"),
+    escape = FALSE) |>
+  kableExtra::kable_paper(full_width = FALSE, position = "left")
+
+# new dataset has more outbreaks than previous
+
+# test = comparison_df |> filter(outbreak_start.x != outbreak_start.y) |> select(outbreak_start.x, outbreak_start.y)
+# sum(test$outbreak_start.x)
+# sum(test$outbreak_start.y)
+
+
+```
+
+### Continuous Variables
+
+For the continuous variables, we compared the median percentage change from Phase I to II.
+We found the changes were small for most of the variables (livestock trade, GDP, human population, migratory wildlife, and shared borders).
+We found higher percentage changes for taxa population, veterinarian population, and COMTRADE agricultural trade dollars.
+Changes in taxa data may be due to several causes - expansion of the known host range of some diseases means a greater host taxa population.
+In some cases country reported livestock populations have been corrected and updated in the source (FAO).
+For veterinarian count, we are aware has updated back-dated records.
+We do not expect any of these changes to have large impacts on model performance.
+
+```{r}
+# calculate relative % difference for continuous variables
+# or should we do coef of variance
+cont_names <- comparison_df |> 
+  dplyr::select_if(is.numeric) |> 
+  colnames()
+
+cont_names_x <- cont_names[str_ends(cont_names, "\\.x")] |> sort()
+cont_names_y <- cont_names[str_ends(cont_names, "\\.y")] |> sort()
+
+continuous_comparison <- purrr::map2_dfr(cont_names_x, cont_names_y, function(x, y){
+  xdat <- comparison_df |> pull(!!x)
+  ydat <- comparison_df |> pull(!!y)
+  
+  tibble::tibble(variable = str_remove(x, "\\.x"), perc_difference = (ydat-xdat)/xdat)
+  
+})
+
+# continuous_comparison_summary <- continuous_comparison |> 
+#   group_by(variable) |> 
+#   summarize(`Quantile (10%)` = scales::percent(quantile(perc_difference, 0.10, na.rm = T)),
+#             `Quantile (25%)` = scales::percent(quantile(perc_difference, 0.25, na.rm = T)),
+#             `Quantile (50%)` = scales::percent(quantile(perc_difference, 0.50, na.rm = T)),
+#             `Quantile (75%)` = scales::percent(quantile(perc_difference, 0.75, na.rm = T)),
+#             `Quantile (90%)` = scales::percent(quantile(perc_difference, 0.90, na.rm = T))) |> 
+#   ungroup() 
+
+continuous_comparison_summary <- continuous_comparison |>
+  dplyr::group_by(variable) |>
+  dplyr::summarize(median = scales::percent(quantile(perc_difference, 0.50, na.rm = T))) |> 
+  dplyr::ungroup()
+
+
+continuous_comparison_summary|>
+  knitr::kable(    col.names = c("Continuous Variable", "Median Relative Difference (% change)"),
+                   escape = FALSE) |>
+  kableExtra::kable_paper(full_width = FALSE, position = "left")
+
+```
+
+# Model Comparison
+
+We fit the Phase II model using the same linear mixed effects approach as in Phase I. We assessed model performance using accuracy metrics and calibration curves, derived from the model's performance on hold-out validation data.
+To compare performance independent of data, we evaluated both Phase I and Phase II models on the validation data from Phase II only.
+
+## Model Summaries
+
+Here we present printed model summaries to ensure comparability in the model objects.
+Because the datasets for the two models differ, we cannot directly compare metrics such as deviance or AIC.
+However, we observe that all reported values including residuals and variances are on the same expected scales.
+
+<details>
+
+<summary>Phase I Model Summary (click to expand)</summary>
+
+```{r}
+summary(lme_mod_network_previous)
+```
+
+</details>
+
+<details>
+
+<summary>Phase II Model Summary (click to expand)</summary>
+
+```{r}
+summary(lme_mod_network)
+```
+
+</details>
+
+```{r}
+# get the overlap
+repel_validation_data_scaled <- repel_validation_data_scaled |>
+  dplyr::mutate(
+    disease_old = stringr::str_replace(
+      string = disease, 
+      pattern = "primary screwworm, new world screwworm",
+      replacement = "primary_screwworm_new_world_screwworm"
+    )
+  )  |> 
+  dplyr::mutate(
+    disease_old = stringr::str_replace_all(
+      string = disease_old,
+      pattern = " |-",
+      replacement = "_"
+    )
+  ) |>
+  dplyr::filter(disease_old %in% levels(lme_mod_network_previous@frame$disease))
+
+validation_data_for_current_model <- repel_validation_data_scaled |> 
+  select(-disease_old)
+validation_data_for_previous_model <- repel_validation_data_scaled |> 
+  select(-disease) |> 
+  rename(disease = disease_old) |> 
+  rename(ots_trade_dollars_from_outbreaks=comtrade_dollars_from_outbreaks)
+```
+
+## Model Performance
+
+We generated predictions from both models on the Phase II hold-out validation dataset.
+For the Phase I model to be able to make predictions on the Phase II validation data, we removed the diseases and countries that were not represented in that model.
+
+### Confusion Matrix
+
+We present confusion matrices for both models to compare the models' ability to correctly predict new outbreaks.
+Model predictions are in the form of probabilities from 0-1.
+We assumed that a prediction of \>= 0.5 indicates that the model predicted an outbreak event.
+
+While confusion matrices and their summary statistics are standard metrics for binary models, they are limited for evaluating this model, which predicts rare events that generally have a probability well below 0.5.
+Metrics which weight negative events reflect the large number of zeroes in the dataset.
+Metrics focusing only on rare outbreak events (Kappa, Negative Predictive Value, Matthews correlation coefficient) reflect performance in very small number of cases where monthly import risk is above 50%.
+For these rare events, both models correctly predict a similar number of outbreak events (7 in Phase I and 13 in Phase II).
+Calibration curves (next section) provide a better measure of rare events.
+
+```{r fig.show="hold", out.width="50%"}
+validation_data_for_previous_model$predicted <- predict(lme_mod_network_previous, validation_data_for_previous_model, type = "response")
+validation_data_for_previous_model$predicted_fct <- factor(validation_data_for_previous_model$predicted>0.5)
+validation_data_for_previous_model$outbreak_start_fct <- factor(validation_data_for_previous_model$outbreak_start)
+cm_previous_model <- yardstick::conf_mat(validation_data_for_previous_model, truth = "outbreak_start_fct", estimate = "predicted_fct") 
+
+cm_previous_model |> 
+  autoplot(type = "heatmap") +
+  labs(title = "Phase I", y = "Predicted Outbreak Event", x = "Observed Outbreak Event") +
+  theme(text = element_text(size = 15)) 
+
+validation_data_for_current_model$predicted <- predict(lme_mod_network, validation_data_for_current_model, type = "response")
+validation_data_for_current_model$predicted_fct <- factor(validation_data_for_current_model$predicted>0.5)
+validation_data_for_current_model$outbreak_start_fct <- factor(validation_data_for_current_model$outbreak_start)
+cm_current_model <- yardstick::conf_mat(validation_data_for_current_model, truth = "outbreak_start_fct", estimate = "predicted_fct") 
+
+cm_current_model |> 
+  autoplot(type = "heatmap") +
+  labs(title = "Phase II", y = "Predicted Outbreak Event", x = "Observed Outbreak Event") +
+  theme(text = element_text(size = 15))
+
+```
+
+```{r}
+dplyr::full_join(
+  summary(cm_previous_model), summary(cm_current_model),
+  by = c(".metric", ".estimator")
+) |>
+  mutate(perc_diff = scales::percent(signif((.estimate.y - .estimate.x)/ .estimate.x), 2)) |> 
+  knitr::kable(
+    col.names = c("Metric", "Estimator", "Phase I", "Phase II",  "Relative Difference (% change)")
+  ) |>
+  kableExtra::kable_paper(full_width = FALSE, position = "left")
+
+# Kappa is a similar measure to accuracy(), but is normalized by the accuracy that would be expected by chance alone and is very useful when one or more classes have large frequency distributions.
+
+```
+
+### Calibration Curves
+
+We assessed model predictions as probabilities against observed outbreak rates in the validation set.
+We grouped predictions into 30 quantile-based bins, grouping across models for comparability.
+We compared the average prediction of each bin to observed outbreak rates within the bin (represented as binomial probabilities and 95% confidence intervals).
+Each prediction represents the expectation of an outbreak of a given disease in a country in a given month.
+This assessment evaluates the reliability of predictions for rare events: given a predicted probability of a rare outbreak, how well is that probability borne out as a fraction of times that outbreaks actually occurred in the validation data?
+
+
+```{r}
+# interval breaks it into even groups by predictor value, eg 0.1-0.2
+# width is just another way to specify intervals
+# number breaks even number of values per group (ie quantile based)
+
+lme_predict_previous_grp <-  validation_data_for_previous_model |>
+  mutate(model = "Phase I")
+
+lme_predict_current_grp <- validation_data_for_current_model |>
+  mutate(model = "Phase II")
+
+lme_predict_grp <- bind_rows(lme_predict_current_grp, lme_predict_previous_grp) |> 
+  mutate(predicted_grp = cut_number(predicted, n = 30)) |>
+  group_by(predicted_grp) |>
+  mutate(predicted_grp_median = median(predicted, na.rm = TRUE)) |>
+  mutate(predicted_grp_mean = mean(predicted, na.rm = TRUE)) |> 
+  mutate(predicted_grp_min = min(predicted, na.rm = TRUE)) |>
+  mutate(predicted_grp_max = max(predicted, na.rm = TRUE)) |>
+  ungroup()
+
+lme_predict_grp_sizes <- lme_predict_grp |> 
+  group_by(model, predicted_grp) |> 
+  count() |> 
+  ungroup() |> 
+  arrange(predicted_grp) 
+
+#summary(lme_predict_grp_sizes$n)
+
+# overall forecast vs actual by binom group
+lme_binoms <- lme_predict_grp |>
+  group_by(model, predicted_grp) |>
+  group_split() |>
+  purrr::map_dfr(function(tw){
+    binom <-  binom::binom.confint(x = sum(tw$outbreak_start), n=nrow(tw), methods = "wilson")
+    tw |>
+      distinct(model, predicted_grp, predicted_grp_median, predicted_grp_mean, predicted_grp_max, predicted_grp_min) |>
+      mutate(outbreak_start_actual_prob = binom$mean, outbreak_start_actual_low = binom$lower, outbreak_start_actual_upper = binom$upper)})
+
+# plot
+options(scipen = 999)
+validation_plots <- ggplot(
+  lme_binoms,
+  aes(y = predicted_grp_mean, x  = outbreak_start_actual_prob)
+) +
+  geom_abline(color = "gray50") +
+  geom_errorbar(aes(xmin = outbreak_start_actual_low, xmax = outbreak_start_actual_upper)) +
+  geom_point(pch = 21,fill = "white") +
+  scale_x_sqrt() +
+  scale_y_sqrt() +
+  facet_wrap(model ~ .) +
+  labs(y = "Forecasted outbreak probability", x = "Observed outbreak rate", color = "",
+       caption = str_wrap("Axes are square root transformed.", 120 )) +
+  theme_minimal() +
+  theme(text = element_text(size = 16),
+        plot.title.position = "plot",
+        plot.caption = element_text(hjust = 0))
+
+validation_plots
+```
+
+Each bin represents approximately 9,000-15,000 predictions, with a median of 12,000.
+Across the range of predictions, the average predicted probability matches the observed fraction of events (by falling within binomial confidence intervals) in 22/30 bins for Phase I and 22/30 bins for Phase II.
+
+```{r}
+# tables (values per 10,000)
+calibration_table <- lme_binoms |> 
+  select(-predicted_grp_median) |> 
+  mutate(predicted_mean_in_range = predicted_grp_mean >= outbreak_start_actual_low & predicted_grp_mean <= outbreak_start_actual_upper) |> 
+  mutate(predicted_mean_in_range = ifelse(predicted_mean_in_range, "yes", "no")) |> 
+  mutate(perc_diff = (predicted_grp_mean - outbreak_start_actual_prob)/predicted_grp_mean) |> 
+  mutate(across(c(predicted_grp_mean, outbreak_start_actual_prob, outbreak_start_actual_low, outbreak_start_actual_upper), ~signif(10000*., 2))) |>  # calculate per 10000
+  mutate(outbreak_start_actual_lab = paste0(outbreak_start_actual_prob, " ", "(", outbreak_start_actual_low, "-", outbreak_start_actual_upper, ")"))  |> 
+  select(-outbreak_start_actual_prob, -outbreak_start_actual_low, -outbreak_start_actual_upper) |> 
+  pivot_wider(names_from = model, values_from = c(outbreak_start_actual_lab, predicted_mean_in_range, perc_diff)) |>  
+  janitor::clean_names() |> 
+  arrange(predicted_grp) |> 
+  select(-predicted_grp) |> 
+  mutate(perc_diff_diff = perc_diff_phase_ii - perc_diff_phase_i) |> 
+  mutate(across(c(perc_diff_phase_i, perc_diff_phase_ii, perc_diff_diff), ~scales::percent(signif(., 2), big.mark = ","))) |> 
+  select("Mean Prediction" = predicted_grp_mean,
+         "Observed Outbreak Rate (mean and 95%CI) - Phase I" = outbreak_start_actual_lab_phase_i,
+         "Mean Prediction within 95%CI - Phase I" = predicted_mean_in_range_phase_i,
+         "Observed Outbreak Rate (mean and 95%CI) - Phase II" = outbreak_start_actual_lab_phase_ii,
+         "Mean Prediction within 95%CI - Phase II" = predicted_mean_in_range_phase_ii,
+         "Percent Difference Between Mean Prediction and Observed Rate - Phase I" = perc_diff_phase_i,
+         "Percent Difference Between Mean Prediction and Observed Rate - Phase II" = perc_diff_phase_ii,
+         "Difference Phase II vs Phase I" = perc_diff_diff) |> 
+  select(1:5) 
+calibration_table |> 
+  knitr::kable(caption = "values are per 10,000 potential events") |> 
+  kableExtra::kable_paper(full_width = FALSE, position = "left") 
+
+```
+
+<details>
+
+<summary>Session info</summary>
+
+-   Built at: `r Sys.time()`
+-   Last git commit hash: `r gert::git_commit_id()`
+
+</details>

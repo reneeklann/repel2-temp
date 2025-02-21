@@ -1,0 +1,282 @@
+---
+title: Repel Model Milestones
+author: Ernest Guevarra, Emma Mendelsohn and Noam Ross, EcoHealth Alliance
+date: "`r Sys.Date()`"
+output: 
+  rmarkdown::html_document:
+    toc: true
+    keep_md: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE, 
+  message = FALSE, 
+  warning = FALSE, 
+  fig.height = 8, 
+  fig.width = 12
+)
+
+## Load packages and project specific functions ----
+library(ggplot2)
+library(yardstick)
+source(here::here("packages.R"))
+for (f in list.files(here::here("R"), full.names = TRUE)) source (f)
+
+generate_calibration_old <- function(repel_validation_predict, 
+                                     opt_bins = TRUE,
+                                     bins = 30) {
+  ## Determine binning approach to predictions ----
+  if (opt_bins) {
+    ## Get optimsed bins information ----
+    opt_breaks <- optimise_bins(repel_validation_predict) |>
+      get_optimised_bin_values() |>
+      (\(x) x$breaks)()
+    expr <- "cut(predicted, breaks = opt_breaks, include.lowest = TRUE, right = FALSE)"
+  } else {
+    expr <- "ggplot2::cut_number(predicted, n = bins)"
+  }
+
+  lme_predict_grp <- repel_validation_predict  |> 
+    dplyr::select(country_iso3c, disease, predicted, outbreak_start) |> 
+    dplyr::mutate(predicted_grp = eval(parse(text = expr))) |>
+    dplyr::group_by(predicted_grp) |>
+    dplyr::mutate(predicted_grp_median = median(predicted, na.rm = TRUE)) |>
+    #dplyr::mutate(predicted_grp_mean = mean(predicted, na.rm = TRUE)) |> 
+    dplyr::mutate(
+      predicted_grp_mean = stringr::str_remove_all(predicted_grp, "\\[|\\)|\\]") |> 
+        stringr::str_split(pattern = ",") |> 
+        lapply(function(x) as.numeric(x) |> median()) |> 
+        unlist()
+    ) |>
+    dplyr::mutate(predicted_grp_min = min(predicted, na.rm = TRUE)) |>
+    dplyr::mutate(predicted_grp_max = max(predicted, na.rm = TRUE)) |>
+    dplyr::ungroup()
+  
+  lme_predict_grp_sizes <- lme_predict_grp |> 
+    dplyr::group_by(predicted_grp) |> 
+    dplyr::count() |> 
+    dplyr::ungroup() |> 
+    dplyr::arrange(predicted_grp) 
+  
+  # overall forecast vs actual by binom group
+  lme_binoms <- lme_predict_grp |>
+    dplyr::group_by(predicted_grp) |>
+    dplyr::group_split() |>
+    purrr::map_dfr(function(tw){
+      binom <-  binom::binom.confint(x = sum(tw$outbreak_start), n=nrow(tw), methods = "wilson")
+      tw |>
+        dplyr::distinct(predicted_grp, predicted_grp_median, predicted_grp_mean, predicted_grp_max, predicted_grp_min) |>
+        dplyr::mutate(outbreak_start_actual_prob = binom$mean, outbreak_start_actual_low = binom$lower, outbreak_start_actual_upper = binom$upper)})
+
+  return(lme_binoms)
+}
+
+target_name <- c("repel_model",
+                 "repel_confusion_matrix",
+                 "repel_performance",
+                 "repel_validation_predict", 
+                 "repel_validation_data_scaled",
+                 "repel_variable_importance_priority_diseases_usa")
+
+model_name <- c("baseline", "additional_predictors")
+model_version <- c("v0.4.0", "v0.7.0")
+
+```
+
+This report provides a quick side-by-side comparison for updates to the REPEL model. 
+The document "repel_model_updates.Rmd" contains the stand-alone latest results and is updated as part of the targets pipeline.
+Because of the reliance on `relic` and locally-archived versions of our models, this document needs to be run manually outside of our targets pipeline.
+
+The following changes are reflected here. We're starting with our yearly recalibration as the baseline for assessing performance changes. 
+1. We shifted the model to a yearly time interval ("baseline")
+2. Addition of two new predictors ("additional_predictors")
+
+
+```{r}
+## Load required targets.
+all_targets <- tibble::tibble(model_name, model_version) |>
+  tidyr::crossing(target_name) |> 
+  dplyr::mutate(target = NA) |>
+  dplyr::mutate(target = purrr::pmap(list(target_name, model_version), function(target_name, model_version) {
+    relic::tar_read_raw_version(target_name, 
+                                ref = model_version, 
+                                repo = "ecohealthalliance/repel2",
+                                store = "_targets_s3")
+  }))
+
+```
+
+
+```{r}
+validation_targets <- tibble::tibble(model_name, model_version) |>
+  tidyr::crossing(target_name = c("repel_model", "repel_validation_predict", "repel_validation_data_scaled")) |> 
+  dplyr::mutate(target = NA) |>
+  dplyr::mutate(target = purrr::pmap(list(target_name, model_version), function(target_name, model_version) {
+    relic::tar_read_raw_version(target_name, 
+                                ref = model_version, 
+                                repo = "ecohealthalliance/repel2",
+                                store = "_targets_s3")
+  }))
+
+optimised_bins <- validation_targets |>
+  dplyr::filter(target_name == "repel_validation_predict") |>
+  dplyr::pull(target) |>
+  lapply(FUN = optimise_bins)
+
+repel_calibration <- validation_targets |>
+  dplyr::filter(target_name == "repel_validation_predict") |>
+  dplyr::pull(target) |>
+  lapply(FUN = generate_calibration_old, opt_bins = TRUE)
+
+repel_calibration_plot <- repel_calibration |> lapply(FUN = plot_calibration)
+
+repel_calibration_plot_plus <- repel_calibration |> 
+  lapply(FUN = plot_calibration, forecast_range = TRUE)
+
+repel_calibration_table <- repel_calibration |> lapply(FUN = table_calibration)
+
+repel_calibration_n_within_range <- repel_calibration_table |> 
+  lapply(FUN = function(x) sum(x$`Mean Prediction within 95%CI` == "yes"))
+```
+
+### Confusion Matrix
+
+Model predictions are in the form of probabilities from 0-1.
+We assumed that a prediction of \>= 0.5 indicates that the model predicted an outbreak event.
+
+While confusion matrices and their summary statistics are standard metrics for binary models, they are limited for evaluating this model, which predicts rare events that generally have a probability well below 0.5.
+Metrics which weight negative events reflect the large number of zeroes in the dataset.
+Metrics focusing only on rare outbreak events (Kappa, Negative Predictive Value, Matthews correlation coefficient) reflect performance in very small number of cases where monthly import risk is above 50%.
+Calibration curves (next section) provide a better measure of rare events.
+
+```{r fig.show="hold", out.width="50%"}
+
+all_targets |> 
+  dplyr::filter(target_name == "repel_confusion_matrix")  |> 
+  dplyr::mutate(plot = purrr::pmap(list(target, model_name), function(target, model_name) {
+    target |> 
+      ggplot2::autoplot(type = "heatmap", text = element_text(size = 30)) + # text size not working
+      ggplot2::labs(y = "Predicted Outbreak Event", x = "Observed Outbreak Event", title = model_name) 
+  })) |> 
+  (\(x) purrr::walk(x$plot, ~print(.)))()
+
+
+```
+
+```{r}
+
+all_targets |> 
+  dplyr::filter(target_name == "repel_performance") |> 
+  (\(x)  purrr::map2(x$target, x$model_name, function(target, model_name){
+    target |> dplyr::rename(!!model_name := .estimate)
+  }))() |> 
+  purrr::reduce(left_join) |> 
+  knitr::kable(
+  ) |>
+  kableExtra::kable_paper(full_width = FALSE, position = "left")
+# Kappa is a similar measure to accuracy(), but is normalized by the accuracy that would be expected by chance alone and is very useful when one or more classes have large frequency distributions.
+
+```
+
+<!-- ``` -->
+
+### Calibration Curve
+
+We assessed model predictions as probabilities against observed outbreak rates in the validation set.
+We grouped predictions into 30 quantile-based bins.
+We compared the average prediction of each bin to observed outbreak rates within the bin (represented as binomial probabilities and 95% confidence intervals).
+Each prediction represents the expectation of an outbreak of a given disease in a country in a given month.
+This assessment evaluates the reliability of predictions for rare events: given a predicted probability of a rare outbreak, how well is that probability borne out as a fraction of times that outbreaks actually occurred in the validation data?
+
+```{r fig.show="hold", out.width="50%"}
+# interval breaks it into even groups by predictor value, eg 0.1-0.2
+# width is just another way to specify intervals
+# number breaks even number of values per group (ie quantile based)
+# options(scipen = 999)
+# all_targets |> 
+#   dplyr::filter(target_name == "repel_calibration_plot") |> 
+#   (\(x) purrr::map2(x$target, x$model_name, function(target, model_name){
+#     target + ggplot2::labs(main = model_name)
+#   }))() |> 
+#   (\(x) purrr::walk(x$plot, ~print(.)))()
+
+repel_calibration_plot_plus
+```
+
+#### Yearly interval
+
+```{r}
+# all_targets |> 
+#   dplyr::filter(target_name %in% c("repel_calibration_table", "repel_calibration_n_within_range")) |> 
+#   tidyr::pivot_wider(names_from = target_name, values_from = target)  |> 
+#   (\(x) purrr::pmap(list(x$repel_calibration_table, 
+#                          x$repel_calibration_n_within_range, 
+#                          x$model_name),
+#                     function(repel_calibration_table,
+#                              repel_calibration_n_within_range,
+#                              model_name){
+#                       
+#                       repel_calibration_table |> 
+#                         dplyr::mutate(Bin = dplyr::row_number()) |>  
+#                         dplyr::rename(!!paste(model_name, "bins within 95% CI:", repel_calibration_n_within_range) := `Mean Prediction within 95%CI`) |> 
+#                         dplyr::select(Bin, 3)
+#                     }))()  |> purrr::reduce(left_join)  |> 
+#   knitr::kable(caption = "values are per 10,000 potential events") |>
+#   kableExtra::kable_paper(full_width = FALSE, position = "left")
+
+#Across the range of predictions, the average predicted probability matches the observed fraction of events (by falling within binomial confidence intervals) in `r n_within` of `r nrow(repel_calibration_table_1)` bins.
+
+repel_calibration_table[[1]] |>
+  knitr::kable(caption = "values are per 10,000 potential events") |>
+  kableExtra::kable_paper(full_width = FALSE, position = "left")
+```
+
+#### Two new predictors
+
+```{r}
+repel_calibration_table[[2]] |>
+  knitr::kable(caption = "values are per 10,000 potential events") |>
+  kableExtra::kable_paper(full_width = FALSE, position = "left")
+```
+
+### Coefficients
+This looks at the distribution of random effects (coefficients) for each variable. There is a random effect for each disease for each variable. 
+
+Note: Our model does not include fixed effects for each variable, only random effects by disease. `randef(mod)` returns individual slopes by disease, which _can_ be interpreted as slopes (positive or negative relationships, magnitude of effect). These slopes are drawn from a normal distribution. If we had included a fixed effect for the variables, the random effect slopes would be offsets that you add to the fixed effect slope.
+
+So, variables with higher magnitudes of effects (either positive or negative) have a greater overall effect on the probability of disease outbreak. Coefficients around 0 do not predict disease outbreak.   
+
+The relationship between GDP and outbreak probability is positive for almost all diseases. For some diseases, that slope is highly positive.
+
+The relationship between each continent and outbreak probability can be positive or negative, depending on the disease. And the effects can be steep in either direction. This makes sense, as some diseases are going to be highly associated with a given continent.
+
+The magnitude of the effect of comtrade and FAO is low overall. 
+
+```{r, fig.height=25}
+all_targets |> 
+  dplyr::filter(target_name == "repel_model") |> 
+  (\(x) purrr::map2(x$target, x$model_name, function(target, model_name){
+    lme4::ranef(target)$disease |> 
+      tibble::as_tibble(rownames = "disease")  |> 
+      tidyr::pivot_longer(-disease) |> 
+      dplyr::mutate(version = model_name)
+  }))()     |> 
+  purrr::reduce(bind_rows) |> 
+  (\(x) ggplot2::ggplot(x, ggplot2::aes(x = value)))() +
+  ggplot2::geom_histogram() +
+  ggplot2::facet_wrap(name ~ version, scales = "free_x",  ncol = length(model_name)) 
+
+```
+
+
+
+
+<details>
+<summary>Session info</summary>
+
+-   Built at: `r Sys.time()`
+-   Last git commit hash: `r gert::git_commit_id()`
+
+</details>
+

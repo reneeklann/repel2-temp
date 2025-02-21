@@ -1,0 +1,329 @@
+---
+title: Repel Crop Model
+date: "`r Sys.Date()`"
+output: 
+  rmarkdown::html_document:
+    toc: true
+    keep_md: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE, 
+  message = FALSE, 
+  warning = FALSE, 
+  fig.height = 8, 
+  fig.width = 12
+)
+
+## Load packages and project specific functions ----
+library(ggplot2)
+library(yardstick)
+source(here::here("packages.R"))
+for (f in list.files(here::here("R"), full.names = TRUE)) source (f)
+```
+
+
+This report documents the evolution of the REPEL crop model as we make updates and improvements upon the original model. It will evolve as we continue to make changes to the data and model.
+
+
+```{r}
+## Load required targets for current/updated augmented dataset ----
+tar_load(
+  c(extracted_data,
+    extracted_data_processed,
+    repel_data_split_crop,
+    # priority_diseases,
+    repel_model_crop,
+    repel_confusion_matrix_crop,
+    repel_performance_crop,
+    repel_calibration_crop,
+    repel_calibration_plot_crop,
+    repel_calibration_table_crop,
+    repel_calibration_n_within_range_crop,
+    repel_validation_predict_crop
+    )
+)
+```
+
+## Data Summary
+
+### Outbreak reports per priority disease
+```{r}
+# get priority diseases
+extracted_data <- read.csv(extracted_data)
+priority_diseases <- extracted_data |>
+      dplyr::filter(priority == TRUE) |>
+      dplyr::pull(preferred_name) |>
+      unique()
+priority_diseases <- c(priority_diseases, "Xylella fastidiosa subsp. fastidiosa", "Xylella fastidiosa subsp. pauca")
+
+# # plot (number of reports)
+# extracted_data_processed |>
+#   dplyr::filter(disease %in% priority_diseases) |>
+#   ggplot(aes(y = forcats::fct_rev(forcats::fct_infreq(disease)), 
+#              fill = forcats::fct_rev(source))) +
+#   geom_bar() +
+#   scale_fill_manual(values = c("#FDE725", "#21918C", "#440154")) +
+#   scale_x_continuous(limits = c(0, 250), expand = c(0, 0)) +
+#   xlab("Number of Records") +
+#   ylab("Disease") +
+#   labs(fill = "Source") +
+#   theme_classic()
+
+# # table (number of reports)
+# priority_disease_freq <- extracted_data_processed |>
+#   dplyr::filter(disease %in% priority_diseases) |>
+#   janitor::tabyl(disease) |>
+#   # dplyr::arrange(desc(n)) |>
+#   dplyr::rename("number of reports" = n) |>
+#   dplyr::select(-percent)
+# priority_disease_freq |>
+#   knitr::kable(escape = FALSE) |>
+#   kableExtra::kable_paper(full_width = FALSE, position = "center")
+
+# number of outbreaks in training dataset
+priority_disease_outbreaks_training <- repel_data_split_crop |>
+  dplyr::filter(validation_set == FALSE) |>
+  dplyr::filter(outbreak_start == TRUE) |>
+  dplyr::filter(disease %in% priority_diseases) |>
+  janitor::tabyl(disease) |>
+  dplyr::rename(outbreaks_training = n) |>
+  dplyr::select(-percent)
+
+# number of outbreaks in full dataset
+priority_disease_outbreaks_full <- repel_data_split_crop |>
+  dplyr::filter(outbreak_start == TRUE) |>
+  dplyr::filter(disease %in% priority_diseases) |>
+  janitor::tabyl(disease) |>
+  dplyr::rename(outbreaks_full = n) |>
+  dplyr::select(-percent)
+
+priority_disease_outbreaks <- dplyr::left_join(priority_disease_outbreaks_full, priority_disease_outbreaks_training) |>
+    dplyr::mutate(outbreaks_training = ifelse(is.na(outbreaks_training), 0, outbreaks_training)) |>
+  dplyr::relocate(outbreaks_full, .after = outbreaks_training) |>
+  dplyr::rename('number of outbreaks in training dataset' = outbreaks_training) |>
+  dplyr::rename('number of outbreaks in full dataset' = outbreaks_full)
+
+priority_disease_outbreaks |>
+  knitr::kable(escape = FALSE) |>
+  kableExtra::kable_paper(full_width = FALSE, position = "center")
+```
+
+### Percent of priority disease reports flagged and manually reviewed
+```{r}
+extracted_data_processed <- extracted_data_processed |>
+  dplyr::filter(disease %in% priority_diseases)
+
+total_reports <- extracted_data_processed |> dplyr::distinct(url, eppo_unique_id) |> nrow()
+
+# flag_disease_number <- length(which(extracted_data_processed$flag_disease == TRUE))
+# flag_disease_percent <- round(flag_disease_number / nrow(extracted_data_processed), digits = 3)
+# flag_disease_reviewed <- round(length(which(extracted_data_processed$flag_disease == TRUE & extracted_data_processed$manually_extracted == TRUE)) / flag_disease_number, digits = 3)
+flag_disease_number <- extracted_data_processed |> dplyr::filter(flag_disease == TRUE) |>
+  dplyr::distinct(url, eppo_unique_id) |> nrow()
+flag_disease_percent <- round(flag_disease_number / total_reports, digits = 3)
+flag_disease_reviewed <- extracted_data_processed |> dplyr::filter(flag_disease == TRUE & manually_extracted == TRUE) |> dplyr::distinct(url, eppo_unique_id) |> nrow()
+flag_disease_reviewed <- round(flag_disease_reviewed / flag_disease_number, digits = 3)
+
+# flag_year_number <- length(which(extracted_data_processed$flag_year == TRUE))
+# flag_year_percent <- round(flag_year_number / nrow(extracted_data_processed), digits = 3)
+# flag_year_reviewed <- round(length(which(extracted_data_processed$flag_year == TRUE & extracted_data_processed$manually_extracted == TRUE)) / flag_year_number, digits = 3)
+flag_year_number <- extracted_data_processed |> dplyr::filter(flag_year == TRUE) |>
+  dplyr::distinct(url, eppo_unique_id) |> nrow()
+flag_year_percent <- round(flag_year_number / total_reports, digits = 3)
+flag_year_reviewed <- extracted_data_processed |> dplyr::filter(flag_year == TRUE & manually_extracted == TRUE) |> dplyr::distinct(url, eppo_unique_id) |> nrow()
+flag_year_reviewed <- round(flag_year_reviewed / flag_year_number, digits = 3)
+
+# flag_presence_number <- length(which(extracted_data_processed$flag_presence == TRUE))
+# flag_presence_percent <- round(flag_presence_number / nrow(extracted_data_processed), digits = 3)
+# flag_presence_reviewed <- round(length(which(extracted_data_processed$flag_presence == TRUE & extracted_data_processed$manually_extracted == TRUE)) / flag_presence_number, digits = 3)
+flag_presence_number <- extracted_data_processed |> dplyr::filter(flag_presence == TRUE) |>
+  dplyr::distinct(url, eppo_unique_id) |> nrow()
+flag_presence_percent <- round(flag_presence_number / total_reports, digits = 3)
+flag_presence_reviewed <- extracted_data_processed |> dplyr::filter(flag_presence == TRUE & manually_extracted == TRUE) |> dplyr::distinct(url, eppo_unique_id) |> nrow()
+flag_presence_reviewed <- round(flag_presence_reviewed / flag_presence_number, digits = 3)
+
+flag_table <- tibble::tibble(
+  "field" = c("disease", "year", "presence"), 
+  "number of reports" = c(flag_disease_number,flag_year_number, flag_presence_number), 
+  "percent of total reports" = c(flag_disease_percent, flag_year_percent, flag_presence_percent),
+  "percent reviewed" = c(flag_disease_reviewed, flag_year_reviewed, flag_presence_reviewed)
+)
+flag_table |> 
+  knitr::kable(escape =  FALSE) |>
+  kableExtra::kable_paper(full_width = FALSE, position = "center")
+```
+
+### Scoring statistics
+```{r}
+# extracted_data <- read.csv(extracted_data)
+
+# assessment data
+assessment_data <- extracted_data |>
+  dplyr::filter(is.na(flag_disease) & is.na(flag_year) & is.na(flag_presence)) |>
+  dplyr::filter(manually_extracted == TRUE)
+
+# flagged data
+flagged_data <- extracted_data |>
+  dplyr::filter(flag_disease == TRUE | flag_year == TRUE | flag_presence == TRUE) |>
+  dplyr::filter(manually_extracted == TRUE)
+
+# all manually extracted data
+all_manual_data <- extracted_data |>
+  dplyr::filter(manually_extracted == TRUE)
+
+score_data <- function(data) {
+  data |>
+    # dplyr::mutate(disease_stringdist = stringdist::stringdist(tolower(disease_extracted), tolower(disease_manual))) |>
+    # dplyr::mutate(disease_correct = disease_stringdist < 7) |>
+    # dplyr::mutate(disease_correct = ifelse(pest == disease_extracted & preferred_name == disease_manual, TRUE, disease_correct)) |>
+    dplyr::mutate(year_correct = year_extracted == year_manual | (is.na(year_extracted) & is.na(year_manual))) |>
+    dplyr::mutate(month_correct = month_extracted == month_manual | (is.na(month_extracted) & is.na(month_manual))) |>
+    dplyr::mutate(presence_correct = presence_extracted == presence_manual | (is.na(presence_extracted) & is.na(presence_manual))) |>
+    dplyr::mutate(dplyr::across(c(year_correct, month_correct, presence_correct), ~ifelse(is.na(.), FALSE, .))) |>
+    dplyr::select(source, pest, flag_year, flag_presence, 
+                  # disease_extracted, disease_manual, disease_stringdist, disease_correct, 
+                  year_extracted, year_manual, year_correct, 
+                  month_extracted, month_manual, month_correct, 
+                  presence_extracted, presence_manual, presence_correct)
+}
+
+assessment_scored <- score_data(data = assessment_data)
+flagged_scored <- score_data(data = flagged_data)
+all_manual_scored <- score_data(data = all_manual_data)
+
+proportion_correct <- function(scored) {
+  c(
+    round(nrow(scored), digits = 0),
+    # length(which(scored$disease_correct == TRUE)) / nrow(scored),
+    round(length(which(scored$year_correct == TRUE)) / nrow(scored), digits = 3),
+    round(length(which(scored$month_correct == TRUE)) / nrow(scored), digits = 3),
+    round(length(which(scored$presence_correct == TRUE)) / nrow(scored), digit = 3)
+  )
+}
+
+assessment_scored_correct <- as.character(proportion_correct(scored = assessment_scored))
+flagged_scored_correct <- as.character(proportion_correct(scored = flagged_scored))
+all_manual_correct <- as.character(proportion_correct(scored = all_manual_scored))
+
+# field <- c("disease", "year", "month", "presence")
+field <- c("number of reports", "year", "month", "presence")
+
+scoring_table <- tibble::tibble(field, assessment = assessment_scored_correct, flagged = flagged_scored_correct, "combined" = all_manual_correct)
+
+scoring_table |> 
+  knitr::kable(escape =  FALSE) |>
+  kableExtra::kable_paper(full_width = FALSE, position = "center")
+```
+
+## Model Summary
+
+```{r}
+summary(repel_model_crop)
+```
+
+## Model Performance
+
+### Confusion Matrix
+
+Model predictions are in the form of probabilities from 0-1.
+We assumed that a prediction of \>= 0.5 indicates that the model predicted an outbreak event.
+
+While confusion matrices and their summary statistics are standard metrics for binary models, they are limited for evaluating this model, which predicts rare events that generally have a probability well below 0.5.
+Metrics which weight negative events reflect the large number of zeroes in the dataset.
+Metrics focusing only on rare outbreak events (Kappa, Negative Predictive Value, Matthews correlation coefficient) reflect performance in very small number of cases where monthly import risk is above 50%.
+Calibration curves (next section) provide a better measure of rare events.
+
+```{r}
+repel_confusion_matrix_crop |>
+  ggplot2::autoplot(type = "heatmap") +
+  ggplot2::labs(y = "Predicted Outbreak Event", x = "Observed Outbreak Event") +
+  ggplot2::theme(text = element_text(size = 15))
+```
+
+```{r}
+repel_performance_crop |>
+  knitr::kable(
+  ) |>
+  kableExtra::kable_paper(full_width = FALSE, position = "left")
+
+# Kappa is a similar measure to accuracy(), but is normalized by the accuracy that would be expected by chance alone and is very useful when one or more classes have large frequency distributions.
+
+```
+
+### Calibration Curve
+
+We assessed model predictions as probabilities against observed outbreak rates in the validation set.
+We grouped predictions into 30 quantile-based bins.
+We compared the average prediction of each bin to observed outbreak rates within the bin (represented as binomial probabilities and 95% confidence intervals).
+Each prediction represents the expectation of an outbreak of a given disease in a country in a given month.
+This assessment evaluates the reliability of predictions for rare events: given a predicted probability of a rare outbreak, how well is that probability borne out as a fraction of times that outbreaks actually occurred in the validation data?
+
+
+```{r}
+# interval breaks it into even groups by predictor value, eg 0.1-0.2
+# width is just another way to specify intervals
+# number breaks even number of values per group (ie quantile based)
+
+
+options(scipen = 999)
+repel_calibration_plot_crop
+
+```
+
+```{r}
+repel_calibration_table_crop |> 
+  knitr::kable(caption = "values are per 10,000 potential events") |> 
+  kableExtra::kable_paper(full_width = FALSE, position = "left") 
+
+n_within <- repel_calibration_n_within_range_crop
+
+```
+
+Across the range of predictions, the average predicted probability matches the observed fraction of events (by falling within binomial confidence intervals) in `r n_within` of `r nrow(repel_calibration_table_crop)` bins.
+
+
+### Reliability Diagram
+From https://www.pnas.org/doi/full/10.1073/pnas.2016191118
+
+Uses the pool-adjacent-violators algorithm to generate optimally binned, reproducible, and provably statistically consistent reliability diagrams.
+
+Mean Score (S) is the event rate in the dataset (` mean(as.integer(repel_validation_predict_crop$outbreak_start))`)
+
+Uncertainty (UNC) is the mean score of a constant prediction at the value of the average observation. It is the highest possible mean score of a calibrated prediction method. It measures the inherent difficulty of the prediction problem, but does not depend on the forecast under consideration.
+
+Discrimination (DSC) is UNC minus the mean score of the PAV-recalibrated forecast values. A small value indicates a low information content (low signal) in the original forecast values. Increasing value indicates model improvement. 
+
+Miscalibration (MCB) is S minus the mean score of the PAV-recalibrated forecast values. A high value indicates that predictive performance of the prediction method can be improved by recalibration. Decreasing value indicates model improvement. 
+
+These measures are related by the following equation:
+S=MCB−DSC+UNC.
+
+
+```{r}
+rd <- reliabilitydiag::reliabilitydiag(x = repel_validation_predict_crop$predicted,
+                                       y = as.integer(repel_validation_predict_crop$outbreak_start))
+
+rd_plot <- reliabilitydiag::autoplot(rd)
+
+rd_plot +
+  ggplot2::scale_x_sqrt() +
+  ggplot2::scale_y_sqrt()
+
+summary(rd) |>
+  dplyr::select(-forecast) |>
+  knitr::kable() |>
+  kableExtra::kable_paper(full_width = FALSE, position = "left")
+```
+
+
+<details>
+
+<summary>Session info</summary>
+
+-   Built at: `r Sys.time()`
+-   Last git commit hash: `r gert::git_commit_id()`
+
+</details>
+

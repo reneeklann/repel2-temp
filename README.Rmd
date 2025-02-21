@@ -1,0 +1,44 @@
+---
+output: github_document
+---
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "man/figures/README-",
+  out.width = "100%"
+)
+```
+
+# REPEL2
+
+<!-- badges: start -->
+[![Project Status: WIP – Initial development is in progress, but there has not yet been a stable, usable release suitable for the public.](https://www.repostatus.org/badges/latest/wip.svg)](https://www.repostatus.org/#wip)
+[![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
+<!-- badges: end -->
+
+The Rapid Evaluation of Pathogens to Prevent Epidemics in Livestock (REPEL) model and Crop Accidental Frequency Model (CAFM) are predictive machine learning approaches using historical outbreak and trade data to estimate the risk of accidental introduction of animal and crop pathogens across country borders.
+
+The project leverages prior research funded by DHS S&T for the Rapid Evaluation of Pathogens to Prevent Epidemics in Livestock (REPEL) model. This repository is called REPEL2 as the second iteration of this model, and now also includes CAFM.
+
+This repository contains REPEL2 code and workflow. The project final technical report can be found in `reports/final-report`. 
+
+Detailed instructions for reproducibility are provided in `vignettes/model_pipeline.html`. The vignette is best viewed as an HTML file, which can be downloaded and viewed in the browser. 
+
+GitHub version releases mark milestones where we expect the code to be used and reviewed by Battelle. Releases contain release notes, source code, and a Docker container. 
+
+The version release tagged `data-cache` contains the final model versions and associated input data and validation steps. (In the EHA repo, the tag `targets-object-backups` has all current targets objects copied from AWS, and the tag `raw-data-backup` has all current contents of the `data-raw/` directory.) All caches are current to the end of the REPEL2 project in June 2024. 
+
+# Repository structure
+
+-   `R/` contains functions created for use in the pipeline.
+-   `_targets.R` is the main R script that defines and orchestrates the different steps in the data pipeline. It sources `tar_plans/_targets_x` files, which specify pipeline order and object dependencies.
+-   `/_targets/objects/` contains all objects produced by the workflow in `_targets.R`, including processed data outputs.
+-   `data-raw/` contains data downloaded/retrieved from the various sources. 
+-   `repel1-extracts` contains model objects and predictions from the Phase I REPEL project.
+-   `reports/` contains generated reports, including intermediate products and the final report.
+-   `vignettes/` contains the instructional vignette.
+-   `inst/` contains manual scripts that can be run manually.
